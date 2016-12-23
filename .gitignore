@@ -1,0 +1,39 @@
+# directories
+backup/
+.*/
+original/
+precompiled/
+bin/
+build/
+builds/
+build_*/
+generated/
+
+# go build generated dirs
+vendor/
+.vendor/
+_vendor/
+._vendor/
+pkg/
+bin/
+
+# files
+*~
+*.bak
+*.backup
+.keep
+.keep*
+*.tar
+*.tar.bz
+*.tar.bz2
+*.gz
+*.html
+*.example
+*.sample
+*.gif
+*.jpg
+*.png
+*.lock
+*.pid
+*.cache
+*.pb.cc
