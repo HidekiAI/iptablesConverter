@@ -6,80 +6,321 @@ import (
     "strconv"
     "strings"
     //"fmt"
+    //"go/types"
 )
 
-// Protocol type representation
-type Protocol int
+type KVP struct {
+    key   interface{}
+    value interface{}
+}
+
+// AddressFamily type representation
+type AddressFamily int
 
 const (
     // IPv4 is default
-    IPv4 Protocol = iota + 1
+    IPv4 AddressFamily = iota + 1
     // IPv6 is less common
     IPv6
+)
+
+type Target string
+
+const (
+    // iptables TARGET
+    TargetACCEPT Target = "ACCEPT"
+    TargetDROP          = "DROP"
+    TargetRETURN        = "RETURN"
+    // iptables-extensions TARGET
+    TargetAUDIT       = "AUDIT"
+    TargetCHECKSUM    = "CHECKSUM"
+    TargetCLASSIFY    = "CLASSIFY"
+    TargetCLUSTERIPv4 = "CLUSTERIP"
+    TargetCONNMARK    = "CONNMARK"
+    TargetCONNSECMARK = "CONNSECMARK"
+    TargetCT          = "CT"
+    TargetDNAT        = "DNAT"
+    TargetDNPTv6      = "DNPT"
+    TargetDSCP        = "DSCP"
+    TargetECNv4       = "ECN"
+    TargetHLv6        = "HL"
+    TargetHMARK       = "HMARK"
+    TargetIDLETIMER   = "IDLETIMER"
+    TargetLED         = "LED"
+    TargetLOG         = "LOG"
+    TargetMARK        = "MARK"
+    TargetMASQUERADE  = "MASQUERADE"
+    TargetMIRRORv4    = "MIRROR"
+    TargetNETMAP      = "NETMAP"
+    TargetNFLOG       = "NFLOG"
+    TargetNFQUEUE     = "NFQUEUE"
+    TargetNOTRACK     = "NOTRACK"
+    TargetRATEEST     = "RATEEST"
+    TargetREDIRECT    = "REDIRECT"
+    TargetREJECTv4    = "REJECT"
+    TargetREJECTv6    = "REJECT"
+    TargetSAMEv4      = "SAME"
+    TargetSECMARK     = "SECMARK"
+    TargetSET         = "SET"
+    TargetSNAT        = "SNAT"
+    TargetSNPTv6      = "SNPT"
+    TargetTCPMSS      = "TCPMSS"
+    TargetTCPOPTSTRIP = "TCPOPTSTRIP"
+    TargetTEE         = "TEE"
+    TargetTOS         = "TOS"
+    TargetPROXY       = "TPROXY"
+    TargetTRACE       = "TRACE"
+    TargetTTLv4       = "TTL"
+    TargetULOGv4      = "ULOG"
 )
 
 // Chain represents default/built-in chains
 type Chain struct {
     name   string
-    target string
+    target Target
 }
 
 // UserDefinedChain are chains that are not built-in
 type UserDefinedChain struct {
     chain Chain
-    rules []string
+    rules []RuleSpec
+}
+type Protocol string
+
+const (
+    ProtocolTCP     Protocol = "tcp"
+    ProtocolUDP              = "udp"
+    ProtocolUDPLite          = "udplite"
+    ProtocolICMP             = "icmp"
+    ProtocolICMPv6           = "icmpv6"
+    ProtocolESP              = "esp"
+    ProtocolAH               = "ah"
+    ProtocolSCTP             = "sctp"
+    ProtocolMH               = "mh"
+    ProtocolALL              = "all"
+)
+
+type Source []string // i.e. '! -s address1/mask,address'
+type Destination []string
+type Match struct {
+    name string            // i.e. '-m comment'
+    rule RuleSpecExtension // i.e. '-m comment --comment "this is comment"'
+}
+type Interface string
+
+// RuleSpec: see man 8 iptables
+type RuleSpec struct {
+    rule     string
+    protocol struct {
+        not bool     // i.e. '! -p tcp'
+        p   Protocol // i.e. '-p udp'
+    }
+    source struct {
+        not bool // i.e. '-s 192.168.42.0/16,192.168.69.0/8', '! -s 127.0.0.1'
+        s   Source
+    }
+    destination struct {
+        not bool
+        d   Destination // i.e. '-d 0.0.0.0/0', '-d ::1/128'
+    }
+    match       Match  // i.e. '-m comment --comment "this is comment"'
+    jump        Target // i.e. '-j ACCEPT'
+    gotoChain   Chain  // i.e. '-g chainName'
+    inInterface struct {
+        not  bool // i.e. '-i lo', '! -i eth2'
+        name Interface
+    }
+    outInterface struct {
+        not  bool
+        name Interface // i.e. '-o any'
+    }
+    fragment struct {
+        not bool // i.e. '-f', '! -f'
+    }
+    counters struct {
+        packets int32
+        bytes   int32
+    }
+}
+
+// RuleSpecExtension: see man 8 iptables-extensions
+type RuleSpecExtension struct {
+    // format: '-m name moduleoptions'
+    // i.e. '-m comment --comment "this is a comment" -j log'
+    addrtype struct {
+    }
+    ahIPv6 struct {
+    }
+    ah struct {
+    }
+    bpf struct {
+    }
+    custer struct {
+    }
+    comment struct {
+    }
+    connbytes struct {
+    }
+    connlabel struct {
+    }
+    connlimit struct {
+    }
+    connmark struct {
+    }
+    conntrack struct {
+    }
+    cpu struct {
+    }
+    dccp struct {
+    }
+    devgroup struct {
+    }
+    dscp struct {
+    }
+    dst struct {
+    }
+    ecn struct {
+    }
+    esp struct {
+    }
+    eui64IPv6 struct {
+    }
+    fragIPv6 struct {
+    }
+    hashlimit struct {
+    }
+    hbhIPv6 struct {
+    }
+    helper struct {
+    }
+    hlIPv6 struct {
+    }
+    icmp struct {
+    }
+    icmp6 struct {
+    }
+    iprange struct {
+    }
+    ipv6header struct {
+    }
+    ipvs struct {
+    }
+    length struct {
+    }
+    limit struct {
+    }
+    mac struct {
+    }
+    mark struct {
+    }
+    mhIPv6 struct {
+    }
+    multiport struct {
+    }
+    nfacct struct {
+    }
+    osf struct {
+    }
+    owner struct {
+    }
+    physdev struct {
+    }
+    pkttype struct {
+    }
+    policy struct {
+    }
+    quota struct {
+    }
+    rateest struct {
+    }
+    realmIPv4 struct {
+    }
+    recent struct {
+    }
+    rpfilter struct {
+    }
+    rtIPv6 struct {
+    }
+    sctp struct {
+    }
+    set struct {
+    }
+    socket struct {
+    }
+    state struct {
+    }
+    statistic struct {
+    }
+    stringMatch struct {
+    }
+    tcp struct {
+    }
+    tcpmss struct {
+    }
+    time struct {
+    }
+    tos struct {
+    }
+    ttlIPv4 struct {
+    }
+    u32 struct {
+    }
+    udp struct {
+    }
+    uncleanIPv4 struct {
+    }
 }
 
 //TableRaw represents the '*raw' table block
 // see TABLES section from http://ipset.netfilter.org/iptables.man.html
 type TableRaw struct {
     chains            []Chain
-    builtInPrerouting []string
-    builtInOutput     []string
+    builtInPrerouting []RuleSpec
+    builtInOutput     []RuleSpec
     userdefined       []UserDefinedChain
 }
 
 //TableNat represents the '*nat' table block
 type TableNat struct {
     chains             []Chain
-    builtInPrerouting  []string
-    builtInOutput      []string
-    builtInPostrouting []string
+    builtInPrerouting  []RuleSpec
+    builtInOutput      []RuleSpec
+    builtInPostrouting []RuleSpec
     userdefined        []UserDefinedChain
 }
 
 //TableMangle represents the '*mangle' table block
 type TableMangle struct {
     chains             []Chain
-    builtInPrerouting  []string
-    builtInOutput      []string
-    builtInInput       []string
-    builtInForward     []string
-    builtInPostrouting []string
+    builtInPrerouting  []RuleSpec
+    builtInOutput      []RuleSpec
+    builtInInput       []RuleSpec
+    builtInForward     []RuleSpec
+    builtInPostrouting []RuleSpec
     userdefined        []UserDefinedChain
 }
 
 //TableFilter represents the '*filter' table block
 type TableFilter struct {
     chains         []Chain
-    builtInInput   []string
-    builtInForward []string
-    builtInOutput  []string
+    builtInInput   []RuleSpec
+    builtInForward []RuleSpec
+    builtInOutput  []RuleSpec
     userdefined    []UserDefinedChain
 }
 
 //TableSecurity represents the '*security' table block
 type TableSecurity struct {
     chains         []Chain
-    builtInInput   []string
-    builtInOutput  []string
-    builtInForward []string
+    builtInInput   []RuleSpec
+    builtInOutput  []RuleSpec
+    builtInForward []RuleSpec
     userdefined    []UserDefinedChain
 }
 
 //Iptables is a struct representing collections of tables
 type Iptables struct {
-    protocol Protocol
+    family   AddressFamily
     raw      TableRaw
     nat      TableNat
     mangle   TableMangle
@@ -109,15 +350,15 @@ func Read(path string) Iptables {
     var securityBlock []string
     var line string
     var currentBlockPtr *[]string
-    ret.protocol = IPv4
+    ret.family = IPv4
     currentBlockPtr = &filterBlock
     scanner := bufio.NewScanner(file)
     for scanner.Scan() {
         line = strings.Trim(scanner.Text(), " \t")
 
-        if ret.protocol != IPv6 {
+        if ret.family != IPv6 {
             if isIPv6(line) {
-                ret.protocol = IPv6
+                ret.family = IPv6
             }
         }
 
@@ -199,30 +440,48 @@ func findChains(lines []string) []Chain {
     for _, line := range lines {
         if strings.HasPrefix(line, ":") {
             split := strings.Split(strings.TrimLeft(line, ":"), " ")
-            ret = append(ret, Chain{name: split[0], target: split[1]})
+            ret = append(ret, Chain{name: split[0], target: Target(split[1])})
         }
     }
     return ret
 }
+func parseRuleSpec(rule string) RuleSpec {
+    split := strings.Split(rule, " \t")
+    for i := 0; i < len(split); i++ {
+        s := split[i]
+        not := false
+        if s == "!" {
+            not = true
+            i++
+        }
+        if strings.HasPrefix(i, "-") {
+            // either -x or --xxx
+            switch s {
+            case "-j" || "--jump":
+                
+            }
+        }
+    }
+}
 
-func appendUserDefined(udc []UserDefinedChain, chainName string, rule string)[]UserDefinedChain {
+func appendUserDefined(udc []UserDefinedChain, chainName string, rule RuleSpec) []UserDefinedChain {
     for iUDC, chain := range udc {
         if chain.chain.name == chainName {
             //fmt.Printf("\t[%d] Existing chain %s, appending rule - rules count = ",iUDC, udc[iUDC].chain.name)
-            udc[iUDC].rules = append (udc[iUDC].rules, rule)
+            udc[iUDC].rules = append(udc[iUDC].rules, rule)
             //fmt.Printf("%d\n", len(udc[iUDC].rules))
             return udc
         }
     }
     // if here, could not find chainName, so just add it as first
-    var newRule []string
+    var newRule []RuleSpec
     newRule = append(newRule, rule)
-    newChain := Chain {
-        name : chainName,
+    newChain := Chain{
+        name: chainName,
     }
     newUDC := UserDefinedChain{
-        chain : newChain,
-        rules : newRule,
+        chain: newChain,
+        rules: newRule,
     }
     udc = append(udc, newUDC)
     //fmt.Printf("\tAdding new chain %s\n", newChain.name)
@@ -250,7 +509,7 @@ func parseFilter(lines []string) TableFilter {
             }
         case "-A":
             // append chain rule
-            rule := strings.Join(split[2:], " ")
+            rule := RuleSpec{rule: strings.Join(split[2:], " ")}
             switch split[1] {
             case "INPUT":
                 table.builtInInput = append(table.builtInInput, rule)
@@ -288,7 +547,7 @@ func parseNat(lines []string) TableNat {
             panic("-I (insert) not currently supported")
         case "-A":
             // append chain rule
-            rule := strings.Join(split[2:], " ")
+            rule := RuleSpec{rule: strings.Join(split[2:], " ")}
             switch split[1] {
             case "PREROUTING ":
                 table.builtInPrerouting = append(table.builtInPrerouting, rule)
@@ -296,6 +555,8 @@ func parseNat(lines []string) TableNat {
                 table.builtInOutput = append(table.builtInOutput, rule)
             case "POSTROUTING":
                 table.builtInPostrouting = append(table.builtInPostrouting, rule)
+            default:
+                table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
             }
         case "-D":
             // delete chain rule
@@ -322,7 +583,7 @@ func parseMangle(lines []string) TableMangle {
             panic("-I (insert) not currently supported")
         case "-A":
             // append chain rule
-            rule := strings.Join(split[2:], " ")
+            rule := RuleSpec{rule: strings.Join(split[2:], " ")}
             switch split[1] {
             case "PREROUTING":
                 table.builtInPrerouting = append(table.builtInPrerouting, rule)
@@ -334,6 +595,8 @@ func parseMangle(lines []string) TableMangle {
                 table.builtInForward = append(table.builtInForward, rule)
             case "POSTROUTING":
                 table.builtInPostrouting = append(table.builtInPostrouting, rule)
+            default:
+                table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
             }
         case "-D":
             // delete chain rule
@@ -360,12 +623,14 @@ func parseRaw(lines []string) TableRaw {
             panic("-I (insert) not currently supported")
         case "-A":
             // append chain rule
-            rule := strings.Join(split[2:], " ")
+            rule := RuleSpec{rule: strings.Join(split[2:], " ")}
             switch split[1] {
             case "PREROUTING":
                 table.builtInPrerouting = append(table.builtInPrerouting, rule)
             case "OUTPUT":
                 table.builtInOutput = append(table.builtInOutput, rule)
+            default:
+                table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
             }
         case "-D":
             // delete chain rule
@@ -392,7 +657,7 @@ func parseSecurity(lines []string) TableSecurity {
             panic("-I (insert) not currently supported")
         case "-A":
             // append chain rule
-            rule := strings.Join(split[2:], " ")
+            rule := RuleSpec{rule: strings.Join(split[2:], " ")}
             switch split[1] {
             case "INPUT":
                 table.builtInInput = append(table.builtInInput, rule)
@@ -400,6 +665,8 @@ func parseSecurity(lines []string) TableSecurity {
                 table.builtInOutput = append(table.builtInOutput, rule)
             case "FORWARD":
                 table.builtInForward = append(table.builtInForward, rule)
+            default:
+                table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
             }
         case "-D":
             // delete chain rule
