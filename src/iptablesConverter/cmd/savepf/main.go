@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"iptablesConverter/packetfilter"
+//"fmt"
+//"iptablesConverter/packetfilter"
 )
 
 func main() {

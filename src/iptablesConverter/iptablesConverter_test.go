@@ -2,18 +2,24 @@ package iptablesConverter
 
 import "testing"
 
-func ReadIPTables4Test(testing *testing.T) {
-	ipt := ReadIPTables("iptables4.conf")
+func ReadIPTables4Test(t *testing.T) {
+	f := "/etc/iptables.rules"
+	t.Log("Reading " + f)
+	ipt := ReadIPTables(f)
+	t.Log(ipt)
 }
 
-func ReadIPTables6Test(testing *testing.T) {
-	ipt := ReadIPTables("iptables6.conf")
+func ReadIPTables6Test(t *testing.T) {
+	ipt := ReadIPTables("/etc/ip6tables.rules")
+	t.Log(ipt)
 }
 
-func ReadNFTablesTest(testing *testing.T) {
-	nft := ReadNFTables("nf4.conf")
+func ReadNFTablesTest(t *testing.T) {
+	nft := ReadNFTables("nf4.rules")
+	t.Log(nft)
 }
 
-func ReadPfiltersTest(testing *testing.T) {
-	pft := ReadPfilters("pf.conf")
+func ReadPfiltersTest(t *testing.T) {
+	pft := ReadPfilters("pf4.rules")
+	t.Log(pft)
 }

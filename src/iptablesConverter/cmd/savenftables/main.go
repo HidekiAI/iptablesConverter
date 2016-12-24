@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"iptablesConverter/nftables"
+//"fmt"
+//"iptablesConverter/nftables"
 )
 
 func main() {

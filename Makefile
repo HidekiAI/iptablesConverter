@@ -21,7 +21,10 @@ fmt:
 # https://github.com/golang/lint
 # go get github.com/golang/lint/golint
 lint:
-	${GOBIN}/golint ./src
+	#${GOROOT}/bin/golint ./src/iptablesConverter/...
+	${GOROOT}/bin/gometalinter src/iptablesConverter/... > /tmp/lint.tmp 2>/dev/null ; \
+	cat /tmp/lint.tmp ; \
+	rm /tmp/lint.tmp
 
 run: build
 	./bin/iptables2nftables
@@ -52,4 +55,5 @@ vendor_update: vendor_get
 # http://godoc.org/code.google.com/p/go.tools/cmd/vet
 # go get code.google.com/p/go.tools/cmd/vet
 vet:
-	go vet -x iptablesConverter/...
+	go vet -v -x iptablesConverter/...
+	go tool vet -v -shadowstrict src/iptablesConverter
