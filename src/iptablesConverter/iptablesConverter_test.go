@@ -10,7 +10,9 @@ func ReadIPTables4Test(t *testing.T) {
 }
 
 func ReadIPTables6Test(t *testing.T) {
-	ipt := ReadIPTables("/etc/ip6tables.rules")
+	f := "/etc/ip6tables.rules"
+	t.Log("Reading " + f)
+	ipt := ReadIPTables(f)
 	t.Log(ipt)
 }
 

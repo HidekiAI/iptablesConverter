@@ -37,3 +37,5 @@ bin/
 *.pid
 *.cache
 *.pb.cc
+*.swp
+*.s?p

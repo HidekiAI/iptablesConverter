@@ -7,7 +7,7 @@ import (
 )
 
 func ReadIPTables(path string) iptables.Iptables {
-	ipt := iptables.Read(path)
+	ipt, _ := iptables.Read(path)
 	return ipt
 }
 
