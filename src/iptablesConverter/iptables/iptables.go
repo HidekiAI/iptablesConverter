@@ -2,13 +2,20 @@ package iptables
 
 import (
 	"bufio"
-	"fmt"
+	//"fmt"
+	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 )
 
+// Each 'Table' contains a number of built-in and user-defined 'Chains'.
+// Each 'Chain' is a list of 'Rules' which can match a set of packets.
+// Each 'Rule' specifies what to do with a packet that matches, and jumps to the 'Target'
+// 'Target' of built-in type ACCEPT means to let the packet through, DROP means to discard,
+// and RETURN means to stop traversing the chain and resume at the next rule where it
+// has jumped from.
 type KVP struct {
 	key   interface{}
 	value interface{}
@@ -30,68 +37,140 @@ const (
 	IPv6
 )
 
-type Target string
+type ChainName string
+
+const (
+	// built-in chains
+	ChainPREROUTING  ChainName = "PREROUTING"
+	ChainINPUT                 = "INPUT"
+	ChainFORWARD               = "FORWARD"
+	ChainOUTPUT                = "OUTPUT"
+	ChainPOSTROUTING           = "POSTROUTING"
+)
+
+type TargetName string
 
 const (
 	// iptables TARGET
-	TargetACCEPT Target = "ACCEPT"
-	TargetDROP          = "DROP"
-	TargetRETURN        = "RETURN"
+	TargetACCEPT TargetName = "ACCEPT"
+	TargetDROP              = "DROP"
+	TargetRETURN            = "RETURN"
 	// iptables-extensions TARGET
-	TargetAUDIT       = "AUDIT"
-	TargetCHECKSUM    = "CHECKSUM"
-	TargetCLASSIFY    = "CLASSIFY"
-	TargetCLUSTERIPv4 = "CLUSTERIP"
-	TargetCONNMARK    = "CONNMARK"
-	TargetCONNSECMARK = "CONNSECMARK"
-	TargetCT          = "CT"
-	TargetDNAT        = "DNAT"
-	TargetDNPTv6      = "DNPT"
-	TargetDSCP        = "DSCP"
-	TargetECNv4       = "ECN"
-	TargetHLv6        = "HL"
-	TargetHMARK       = "HMARK"
-	TargetIDLETIMER   = "IDLETIMER"
-	TargetLED         = "LED"
-	TargetLOG         = "LOG"
-	TargetMARK        = "MARK"
-	TargetMASQUERADE  = "MASQUERADE"
-	TargetMIRRORv4    = "MIRROR"
-	TargetNETMAP      = "NETMAP"
-	TargetNFLOG       = "NFLOG"
-	TargetNFQUEUE     = "NFQUEUE"
-	TargetNOTRACK     = "NOTRACK"
-	TargetRATEEST     = "RATEEST"
-	TargetREDIRECT    = "REDIRECT"
-	TargetREJECTv4    = "REJECT"
-	TargetREJECTv6    = "REJECT"
-	TargetSAMEv4      = "SAME"
-	TargetSECMARK     = "SECMARK"
-	TargetSET         = "SET"
-	TargetSNAT        = "SNAT"
-	TargetSNPTv6      = "SNPT"
-	TargetTCPMSS      = "TCPMSS"
-	TargetTCPOPTSTRIP = "TCPOPTSTRIP"
-	TargetTEE         = "TEE"
-	TargetTOS         = "TOS"
-	TargetPROXY       = "TPROXY"
-	TargetTRACE       = "TRACE"
-	TargetTTLv4       = "TTL"
-	TargetULOGv4      = "ULOG"
+	TargetAUDIT       TargetName = "AUDIT"
+	TargetCHECKSUM               = "CHECKSUM"
+	TargetCLASSIFY               = "CLASSIFY"
+	TargetCLUSTERIPv4            = "CLUSTERIP"
+	TargetCONNMARK               = "CONNMARK"
+	TargetCONNSECMARK            = "CONNSECMARK"
+	TargetCT                     = "CT"
+	TargetDNAT                   = "DNAT"
+	TargetDNPTv6                 = "DNPT"
+	TargetDSCP                   = "DSCP"
+	TargetECNv4                  = "ECN"
+	TargetHLv6                   = "HL"
+	TargetHMARK                  = "HMARK"
+	TargetIDLETIMER              = "IDLETIMER"
+	TargetLED                    = "LED"
+	TargetLOG                    = "LOG"
+	TargetMARK                   = "MARK"
+	TargetMASQUERADE             = "MASQUERADE"
+	TargetMIRRORv4               = "MIRROR"
+	TargetNETMAP                 = "NETMAP"
+	TargetNFLOG                  = "NFLOG"
+	TargetNFQUEUE                = "NFQUEUE"
+	TargetNOTRACK                = "NOTRACK"
+	TargetRATEEST                = "RATEEST"
+	TargetREDIRECT               = "REDIRECT"
+	TargetREJECT                 = "REJECT"
+	TargetSAMEv4                 = "SAME"
+	TargetSECMARK                = "SECMARK"
+	TargetSET                    = "SET"
+	TargetSNAT                   = "SNAT"
+	TargetSNPTv6                 = "SNPT"
+	TargetTCPMSS                 = "TCPMSS"
+	TargetTCPOPTSTRIP            = "TCPOPTSTRIP"
+	TargetTEE                    = "TEE"
+	TargetTOS                    = "TOS"
+	TargetPROXY                  = "TPROXY"
+	TargetTRACE                  = "TRACE"
+	TargetTTLv4                  = "TTL"
+	TargetULOGv4                 = "ULOG"
 )
 
-// Chain represents default/built-in chains
-type Chain struct {
-	name   string
-	line   int
-	target Target
+type Target struct {
+	//chainName ChainName  // i.e. INPUT, "FORWARD", "OUTPUT", "USERDEFINEDCHAIN"
+	target TargetName // i.e. "DROP", "ACCEPT", "RETURN", "LOGNDROP", "USERDEFINEDCHAIN"
+	audit  struct {
+		auditType string
+	}
+	checksum struct {
+		fill bool
+	}
+	classify struct {
+		class [2]int // hex values of major:minor
+	}
+	clusteripv4 struct {
+		new        bool
+		hashmode   string // Has to be one of sourceip, sourceip-sourceport, sourceip-sourceport-destport.
+		clustermac string // MAC
+		totalNodes int
+		localNode  int
+		hashInit   int // RNG seed
+	}
+	connMark struct {
+	}
+	connSecMark struct {
+	}
+	ct struct {
+	}
+	dnat      struct{}
+	dnptv6    struct{}
+	dscp      struct{}
+	ecnv4     struct{}
+	hlv6      struct{}
+	hmark     struct{}
+	idleTimer struct{}
+	led       struct{}
+	log       struct {
+		logLevel       string // some distros uses integer, some distros will allow strings of emerg, alert, crit, error, warning, notice, info or debug (decreasing order of priority)
+		logPrefix      string // up to 29 chars
+		logTcpSequence bool
+		logTcpOptions  bool
+		logIpOptions   bool
+		logUID         bool
+	}
+	mark       struct{}
+	masquerade struct{}
+	mirrorv4   struct{}
+	netmap     struct{}
+	nflog      struct{}
+	nfqueue    struct{}
+	notrack    struct{}
+	rateEst    struct{}
+	redirect   struct{}
+	reject6    struct {
+		// IPv6-specific: icmp6-no-route, no-route, icmp6-adm-prohibited, adm-prohibited, icmp6-addr-unreachable, addr-unreach, or icmp6-port-unreachable
+		rejectWith string
+	}
+	reject4 struct {
+		// IPv4-specific: icmp-net-unreachable, icmp-host-unreachable, icmp-port-unreachable, icmp-proto-unreachable, icmp-net-prohibited, icmp-host-prohibited, or icmp-admin-prohibited
+		rejectWith string
+	}
+	same        struct{}
+	secMark     struct{}
+	set         struct{}
+	snat        struct{}
+	snptv6      struct{}
+	tcpMss      struct{}
+	tcpOptStrip struct{}
+	tee         struct{}
+	tos         struct{}
+	tproxy      struct{}
+	trace       struct{}
+	ttlv4       struct{}
+	ulogv4      struct{}
 }
 
-// UserDefinedChain are chains that are not built-in
-type UserDefinedChain struct {
-	chain Chain
-	rules []RuleSpec
-}
 type Protocol string
 
 const (
@@ -116,7 +195,7 @@ type Match struct {
 }
 type Interface string
 
-// RuleSpec: see man 8 iptables
+// RuleSpec: see man 8 iptables - Note that Target is embedded only when '--jump' is encountered
 type RuleSpec struct {
 	rule string // preserve raw string, used in case where converter cannot handle
 	line int    // mainly for error purpose
@@ -140,10 +219,10 @@ type RuleSpec struct {
 	}
 	// match: -m, --match match
 	match Match // i.e. '-m comment --comment "this is comment"'
-	// jump: -j, --jump atarget
-	jump Target // i.e. '-j ACCEPT'
-	// goto: -g, --goto chain
-	gotoChain Chain // i.e. '-g chainName'
+	// jump: -j, --jump atarget (when '-j RETURN' is encountered, it returns back to the caller, but if it is at the default chain, it is up to what is set at the heading i.e. ':INPUT DROP [0:0]')
+	jumpToTarget Target // i.e. '-j ACCEPT', '--jump LOGNDROP', '-j RETURN'
+	// goto: -g, --goto chain (when '-j RETURN' is encountered, back to the calling --jump of another chain)
+	gotoChain ChainName // i.e. '-g OUTPUT', '--goto USERDEFINEDCHAIN'
 	// inInterface: [!] -i, --in-interface name
 	inInterface struct {
 		not  bool // i.e. '-i lo', '! -i eth2'
@@ -169,6 +248,7 @@ type AddressType string
 type ConnTrackState string
 type ConnTrackStatus string
 type ConnTrackDir string
+type StateState string // subset of "connntrack"
 
 const (
 	ATUnspec      AddressType = "UNSPEC"
@@ -200,6 +280,12 @@ const (
 
 	CTDirOriginal ConnTrackDir = "ORIGINAL"
 	CTDirReply                 = "REPLY"
+
+	StateInvalid     StateState = "INVALID"
+	StateEstablished            = "ESTABLISHED"
+	StateNew                    = "NEW"
+	StateRelated                = "RELATED"
+	STateUntracked              = "UNTRACKED"
 )
 
 // RuleSpecExtension: see man 8 iptables-extensions
@@ -304,11 +390,80 @@ type RuleSpecExtension struct {
 	helper struct {
 	}
 	hlIPv6 struct {
+		// hop limit
+		neq bool
+		eq  int
+		lt  int
+		gt  int
 	}
 	icmp struct {
+		// Valid ICMP Types:
+		//	any
+		//	echo-reply (pong)
+		//	destination-unreachable
+		//		network-unreachable
+		//		host-unreachable
+		//		protocol-unreachable
+		//		port-unreachable
+		//		fragmentation-needed
+		//		source-route-failed
+		//		network-unknown
+		//		host-unknown
+		//		network-prohibited
+		//		host-prohibited
+		//		TOS-network-unreachable
+		//		TOS-host-unreachable
+		//		communication-prohibited
+		//		host-precedence-violation
+		//		precedence-cutoff
+		//	source-quench
+		//	redirect
+		//		network-redirect
+		//		host-redirect
+		//		TOS-network-redirect
+		//		TOS-host-redirect
+		//	echo-request (ping)
+		//	router-advertisement
+		//	router-solicitation
+		//	time-exceeded (ttl-exceeded)
+		//		ttl-zero-during-transit
+		//		ttl-zero-during-reassembly
+		//	parameter-problem
+		//		ip-header-bad
+		//	required-option-missing
+		//	timestamp-request
+		//	timestamp-reply
+		//	address-mask-request
+		//	address-mask-reply
+		not      bool
+		icmpType string // type[/code] | typename (see 'iptables -p icmp -h')
 	}
 	icmp6 struct {
+		// Valid ICMPv6 Types:
+		//	destination-unreachable
+		//		no-route
+		//		communication-prohibited
+		//		address-unreachable
+		//		port-unreachable
+		//	packet-too-big
+		//	time-exceeded (ttl-exceeded)
+		//		ttl-zero-during-transit
+		//		ttl-zero-during-reassembly
+		//	parameter-problem
+		//		bad-header
+		//		unknown-header-type
+		//		unknown-option
+		//	echo-request (ping)
+		//	echo-reply (pong)
+		//	router-solicitation
+		//	router-advertisement
+		//	neighbour-solicitation (neighbor-solicitation)
+		//	neighbour-advertisement (neighbor-advertisement)
+		//	redirect
+		not        bool
+		icmpv6Type string // type[/code] | typename (see 'ip6tables -p ipv6-icmp -h')
 	}
+
 	iprange struct {
 	}
 	ipv6header struct {
@@ -366,6 +521,8 @@ type RuleSpecExtension struct {
 	socket struct {
 	}
 	state struct {
+		notState  bool
+		stateList []StateState
 	}
 	statistic struct {
 	}
@@ -404,10 +561,23 @@ type RuleSpecExtension struct {
 	}
 }
 
+type DefaultChainPolicy struct {
+	chainName     ChainName
+	policy        TargetName
+	packetCounter int
+	byteCounter   int
+}
+
+// UserDefinedChain are chains that are not built-in
+type UserDefinedChain struct {
+	name  TargetName
+	rules []RuleSpec
+}
+
 //TableRaw represents the '*raw' table block
 // see TABLES section from http://ipset.netfilter.org/iptables.man.html
 type TableRaw struct {
-	chains            []Chain
+	defaultPolicies   []DefaultChainPolicy
 	builtInPrerouting []RuleSpec
 	builtInOutput     []RuleSpec
 	userdefined       []UserDefinedChain
@@ -415,7 +585,7 @@ type TableRaw struct {
 
 //TableNat represents the '*nat' table block
 type TableNat struct {
-	chains             []Chain
+	defaultPolicies    []DefaultChainPolicy
 	builtInPrerouting  []RuleSpec
 	builtInOutput      []RuleSpec
 	builtInPostrouting []RuleSpec
@@ -424,7 +594,7 @@ type TableNat struct {
 
 //TableMangle represents the '*mangle' table block
 type TableMangle struct {
-	chains             []Chain
+	defaultPolicies    []DefaultChainPolicy
 	builtInPrerouting  []RuleSpec
 	builtInOutput      []RuleSpec
 	builtInInput       []RuleSpec
@@ -435,20 +605,20 @@ type TableMangle struct {
 
 //TableFilter represents the '*filter' table block
 type TableFilter struct {
-	chains         []Chain
-	builtInInput   []RuleSpec
-	builtInForward []RuleSpec
-	builtInOutput  []RuleSpec
-	userdefined    []UserDefinedChain
+	defaultPolicies []DefaultChainPolicy
+	builtInInput    []RuleSpec
+	builtInForward  []RuleSpec
+	builtInOutput   []RuleSpec
+	userdefined     []UserDefinedChain
 }
 
 //TableSecurity represents the '*security' table block
 type TableSecurity struct {
-	chains         []Chain
-	builtInInput   []RuleSpec
-	builtInOutput  []RuleSpec
-	builtInForward []RuleSpec
-	userdefined    []UserDefinedChain
+	defaultPolicies []DefaultChainPolicy
+	builtInInput    []RuleSpec
+	builtInOutput   []RuleSpec
+	builtInForward  []RuleSpec
+	userdefined     []UserDefinedChain
 }
 
 //Iptables is a struct representing collections of tables
@@ -578,12 +748,18 @@ func isIPv6(line string) bool {
 	return false
 }
 
-func findChains(lines map[int]string) []Chain {
-	var ret []Chain
-	for key, value := range lines {
+// format: ":ChainName TargetName [packet:byte]"
+func findDefaultPolicies(lines map[int]string) []DefaultChainPolicy {
+	var ret []DefaultChainPolicy
+	for _, value := range lines {
 		if strings.HasPrefix(value, ":") {
 			split := strings.Fields(strings.TrimLeft(value, ":"))
-			ret = append(ret, Chain{name: split[0], target: Target(split[1]), line: key})
+			ret = append(ret, DefaultChainPolicy{
+				chainName:     ChainName(split[0]),  // i.e. "INPUT", "FORWARD", "MYCHAIN"
+				policy:        TargetName(split[1]), // i.e. "DROP", "-", "REJECT"
+				packetCounter: 0,
+				byteCounter:   0,
+			})
 		}
 	}
 	return ret
@@ -608,22 +784,29 @@ func parseQuotedText(strList []string) (string, int) {
 	retCount := 0
 	foundClosing := false
 	// search for text which begins with "|' and ends with matching punctuations
+	//log.Printf("\t>> Parsing '%s'\n", strList)
 	if strings.HasPrefix(strList[0], "\"") || strings.HasPrefix(strList[0], "'") {
 		punctuation := strList[0][:1]
 		retString = retString + strList[0] // including the punctuation
 		retCount++
 		for _, s := range strList[1:] {
 			retCount++
-			retString = retString + s
+			retString = retString + " " + s
 			if strings.HasSuffix(s, punctuation) {
 				foundClosing = true
 				break
 			}
 		}
+		if foundClosing == false {
+			panic("Unable to find closing quote in the string-list passed")
+		}
+	} else {
+		// if no punctuations are found, assume next field is the ONLY string
+		retString = strList[0]
+		retCount++
 	}
-	if foundClosing == false {
-		panic("Unable to find closing quote in the string-list passed")
-	}
+	// Could have probably done strings.Join(slice[:retCount], " ") here...
+	//log.Printf("\t> Parsed '%s' (count: %d) from '%s'\n", retString, retCount, strList)
 	return retString, retCount
 }
 
@@ -642,11 +825,232 @@ func lookupServicePort(port string) int {
 	return p
 }
 
+func parseTargetExtensions(strList []string) (Target, int) {
+	retT := Target{target: TargetName(strList[0])}
+	retCount := 1 // first param is always assumed to be the TARGET (i.e. '-j ACCEPT', '-j MYUSERDEFINEDCHAIN', etc)
+	for i, s := range strList[retCount:] {
+		// all options for targets starts with "--"
+		if strings.HasPrefix(s, "--") {
+			switch retT.target {
+			// default targets: ACCEPT, DROP, and RETURN
+			case TargetACCEPT:
+				{
+				}
+			case TargetDROP:
+				{
+				}
+			case TargetRETURN:
+				{
+				}
+				// extension TARGETs
+			case TargetAUDIT:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetCHECKSUM:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetCLASSIFY:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetCLUSTERIPv4:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetCONNMARK:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetCONNSECMARK:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetCT:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetDNAT:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetDNPTv6:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetDSCP:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetECNv4:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetHLv6:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetHMARK:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetIDLETIMER:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetLED:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetLOG:
+				{
+					switch s {
+					case "--log-level":
+						{
+							retCount++
+							retT.log.logLevel = strList[i]
+						}
+					case "--log-prefix":
+						{
+							retCount++
+							c := 0
+							retT.log.logPrefix, c = parseQuotedText(strList[retCount:])
+							retCount = retCount + c
+							i = i + c
+							i--
+						}
+					case "--log-tcp-sequence":
+						{
+							retCount++
+							retT.log.logTcpSequence = true
+						}
+					case "--log-tcp-options":
+						{
+							retCount++
+							retT.log.logTcpOptions = true
+						}
+					case "--log-uid":
+						{
+							retCount++
+							retT.log.logUID = true
+						}
+					}
+				}
+			case TargetMARK:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetMASQUERADE:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetMIRRORv4:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetNETMAP:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetNFLOG:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetNFQUEUE:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetNOTRACK:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetRATEEST:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetREDIRECT:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetREJECT:
+				{
+					// there are IPv4 and IPv6 differences, all the IPv4 starts with "icmp-" while IPv6 has ones like 'adm-' and 'addr-'
+					if strings.HasPrefix(strList[i], "icmp-") {
+						retT.reject4.rejectWith = strList[i]
+						retCount++
+					} else {
+						retT.reject6.rejectWith = strList[i]
+						retCount++
+					}
+				}
+			case TargetSAMEv4:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetSECMARK:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetSET:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetSNAT:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetSNPTv6:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetTCPMSS:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetTCPOPTSTRIP:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetTEE:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetTOS:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetPROXY:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetTRACE:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetTTLv4:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			case TargetULOGv4:
+				{
+					panic("CODE ME! - " + retT.target + " currently unsupported")
+				}
+			default:
+				panic(string("Unknown target '" + retT.target + "' encountered"))
+			}
+		}
+	}
+	return retT, retCount
+}
+
 func parseRuleSpec(rule []string, isIPv6 bool, lineNum int) (RuleSpec, ParseError) {
+	//fmt.Println(lineNum, "=== Begin parseRuleSpec(", rule, ")")
 	retRule := RuleSpec{rule: strings.Join(rule, " ")}
 	parseErr := ParseError{}
 	for i := 0; i < len(rule); i++ {
 		s := rule[i]
+		//fmt.Printf("%d: Parsing '%s' of '%s'\n", lineNum, s, rule[i:])
 		not := false
 		if s == "!" {
 			not = true
@@ -662,7 +1066,7 @@ func parseRuleSpec(rule []string, isIPv6 bool, lineNum int) (RuleSpec, ParseErro
 					if isIPv6 {
 						parseErr.line = lineNum
 						parseErr.msg = "Parse requested as IPv6, but found '--ipv4' in rules"
-						panic(parseErr.msg)
+						panic(parseErr)
 					}
 				}
 			case "-6", "--ipv6":
@@ -671,7 +1075,7 @@ func parseRuleSpec(rule []string, isIPv6 bool, lineNum int) (RuleSpec, ParseErro
 					if isIPv6 == false {
 						parseErr.line = lineNum
 						parseErr.msg = "Parse requested as IPv4, but found '--ipv6' in rules"
-						panic(parseErr.msg)
+						panic(parseErr)
 					}
 				}
 			case "-p", "--protocol":
@@ -700,18 +1104,34 @@ func parseRuleSpec(rule []string, isIPv6 bool, lineNum int) (RuleSpec, ParseErro
 					name := rule[i]
 					i++
 					var j int
+					//fmt.Println(lineNum, ": Match: ", name, rule[i:])
 					j, retRule.match, parseErr = parseMatch(name, rule[i:], isIPv6, lineNum)
-					i = i + j
+					if parseErr.msg == "" {
+						i = i + j
+						//fmt.Printf("%d: Advancing %d fields -> next: '%s'\n\n", lineNum, j, rule[i:])
+						i-- // because the for{} loop will inc to next field, we want to dec it
+					} else {
+						log.Printf("Line: %d - Failed to parse match '%s' (%s)\n", lineNum, name, rule[i:])
+						panic(parseErr)
+					}
 				}
 			case "-j", "--jump":
 				{
 					i++
-					retRule.jump = Target(rule[i])
+					// parse target-extensions (i.e. AUDIT, CHECKSUM, LOG, etc)
+					// i.e. '-j LOG --log-level 7 --log-prefix "Denied: "
+					// Special case: '--jump RETURN', if "RETURN" is at the top of the
+					// chain (built-in chain), it is up to the default policy defined
+					// at headings of each tables
+					c := 0
+					retRule.jumpToTarget, c = parseTargetExtensions(rule[i:])
+					i = i + c
+					i-- // because for{} loop will inc
 				}
 			case "-g", "--goto":
 				{
 					i++
-					retRule.gotoChain = Chain{name: rule[i]}
+					retRule.gotoChain = ChainName(rule[i])
 				}
 			case "-i", "--in-interface":
 				{
@@ -748,9 +1168,13 @@ func parseRuleSpec(rule []string, isIPv6 bool, lineNum int) (RuleSpec, ParseErro
 					}
 				}
 			}
-			i++
+		} else if strings.HasPrefix(s, "\"") || strings.HasPrefix(s, "'") {
+			s, c := parseQuotedText(rule[i:])
+			i = i + c
+			log.Printf("%d: Encountered unexpected quoted string '%s' at field %d, skipping %d fields\n", lineNum, s, i-c, c)
 		}
 	}
+	//fmt.Println("Done parsing: ", retRule, parseErr, "\n---")
 	return retRule, parseErr
 }
 
@@ -760,7 +1184,8 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 	parseErr := ParseError{}
 	options := ""
 	not := false
-	for retCount = 0; retCount < len(strList); retCount++ {
+	done := false
+	for retCount = 0; retCount < len(strList) && done == false; retCount++ {
 		// all options either starts with '!' (i.e. '! --src-type LOCAL' or '--' (i.e. '--comment').
 		// anything else (i.e. starts with '-' (single minus), etc are considered to be not based
 		// on iptables-extensions type and signals as end of match
@@ -771,6 +1196,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 			s = strList[retCount]
 		}
 
+		// ALL options for the '--match' module starts with '--' (no short hand of '-')
 		if strings.HasPrefix(s, "--") {
 			options = s
 
@@ -801,6 +1227,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 				}
@@ -829,7 +1256,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 								parseErr.line = lineNum
 								parseErr.err = convErr
 								parseErr.msg = "Could not convert '" + strList[retCount] + "' to integer"
-								panic(parseErr.err)
+								panic(parseErr)
 							}
 						}
 					case "--ahres":
@@ -838,6 +1265,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 				}
@@ -855,6 +1283,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 				}
@@ -870,7 +1299,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 								parseErr.line = lineNum
 								parseErr.err = convErr
 								parseErr.msg = "Could not convert '" + strList[retCount] + "' to integer"
-								panic(parseErr.err)
+								panic(parseErr)
 							}
 						}
 					case "--cluster-local-nodemask":
@@ -883,7 +1312,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 								parseErr.line = lineNum
 								parseErr.err = convErr
 								parseErr.msg = "Could not convert '" + strList[retCount] + "' to integer"
-								panic(parseErr.err)
+								panic(parseErr)
 							}
 						}
 					case "--cluster-hash-seed":
@@ -895,13 +1324,14 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 								parseErr.line = lineNum
 								parseErr.err = convErr
 								parseErr.msg = "Could not convert '" + strList[retCount] + "' to integer"
-								panic(parseErr.err)
+								panic(parseErr)
 							}
 						}
 
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 				}
@@ -914,10 +1344,13 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 							quotedText, c := parseQuotedText(strList[retCount:])
 							retCount = retCount + c
 							retMatch.match.comment.comment = quotedText
+							//fmt.Println(">>> Parsed quoted text '", quotedText, "' (", c, " fields) - Next fields: ", strList[retCount:])
 						}
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						//fmt.Println("\tDone with comments... breaking out at retCount = ", retCount)
+						done = true
 						break
 					}
 				}
@@ -928,6 +1361,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 					panic("CODE ME! - " + moduleName + " - " + options)
@@ -939,6 +1373,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 					panic("CODE ME! - " + moduleName + " - " + options)
@@ -950,6 +1385,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 					panic("CODE ME! - " + moduleName + " - " + options)
@@ -1072,6 +1508,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 				}
@@ -1081,6 +1518,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1092,6 +1530,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1103,6 +1542,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1114,6 +1554,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1125,6 +1566,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1137,6 +1579,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 					default:
 						// none of the expected options for module, so we are done with this Match
 						retCount-- // rewind
+						done = true
 						break
 					}
 					panic("CODE ME! - " + moduleName + " - " + options)
@@ -1147,6 +1590,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1158,6 +1602,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1169,6 +1614,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1180,6 +1626,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1191,6 +1638,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1202,6 +1650,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1209,36 +1658,67 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 				}
 			case "hl":
 				{
+					// hoplimit
 					switch options {
+					case "--hl-eq":
+						{
+							retMatch.match.hlIPv6.neq = not
+							retCount++
+							var convErr error
+							retMatch.match.hlIPv6.eq, convErr = strconv.Atoi(strList[retCount])
+							if convErr != nil {
+								parseErr.line = lineNum
+								parseErr.err = convErr
+								parseErr.msg = "Could not convert '" + strList[retCount] + "' to integer"
+								panic(parseErr)
+							}
+						}
+					case "--hl-lt":
+						{
+						}
+					case "--hl-gt":
+						{
+						}
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
-					panic("CODE ME! - " + moduleName + " - " + options)
 				}
 			case "icmp":
 				{
 					switch options {
-
+					case "--icmp-type":
+						{
+							retMatch.match.icmp.not = not
+							retCount++
+							retMatch.match.icmp.icmpType = strList[retCount]
+						}
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
-					panic("CODE ME! - " + moduleName + " - " + options)
 				}
 			case "icmp6":
 				{
 					switch options {
+					case "--icmpv6-type":
+						{
+							retMatch.match.icmp6.not = not
+							retCount++
+							retMatch.match.icmp6.icmpv6Type = strList[retCount]
+						}
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
-					panic("CODE ME! - " + moduleName + " - " + options)
 				}
 			case "iprange":
 				{
@@ -1246,6 +1726,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1257,6 +1738,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1268,6 +1750,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1279,6 +1762,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1300,13 +1784,14 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 								parseErr.line = lineNum
 								parseErr.err = convErr
 								parseErr.msg = "Could not convert '" + strList[retCount] + "' to integer"
-								panic(parseErr.err)
+								panic(parseErr)
 							}
 							retMatch.match.limit.burst = i
 						}
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1317,6 +1802,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1328,6 +1814,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1339,6 +1826,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1368,6 +1856,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1378,6 +1867,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1389,6 +1879,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1400,6 +1891,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1411,6 +1903,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1422,6 +1915,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1433,6 +1927,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1444,6 +1939,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1455,6 +1951,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1466,6 +1963,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1477,6 +1975,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1488,6 +1987,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1499,6 +1999,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1510,6 +2011,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1521,6 +2023,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1532,6 +2035,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1540,13 +2044,25 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 			case "state":
 				{
 					switch options {
+					case "--state":
+						{
+							retMatch.match.state.notState = not
+							retCount++
+							csv := strings.Split(strList[retCount], ",")
+							retMatch.match.state.stateList = make([]StateState, len(csv))
+							//fmt.Println("--state -> ", strList[retCount], csv)
+							for i, s := range csv {
+								retMatch.match.state.stateList[i] = StateState(s)
+								//fmt.Println("\t", i, ":", s, retMatch.match.state.stateList[i])
+							}
+						}
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
-					panic("CODE ME! - " + moduleName + " - " + options)
 				}
 			case "statistic":
 				{
@@ -1554,6 +2070,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1565,6 +2082,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1615,13 +2133,14 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 								parseErr.line = lineNum
 								parseErr.err = convErr
 								parseErr.msg = "Could not convert '" + strList[retCount] + "' to integer"
-								panic(parseErr.err)
+								panic(parseErr)
 							}
 							retMatch.match.tcp.option = i
 						}
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1632,6 +2151,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1643,6 +2163,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1654,6 +2175,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1665,6 +2187,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1676,6 +2199,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1705,6 +2229,7 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
@@ -1715,53 +2240,57 @@ func parseMatch(moduleName string, strList []string, isIPv6 bool, lineNum int) (
 
 					default:
 						// none of the expected options for module, so we are done with this Match
+						done = true
 						retCount-- // rewind
 						break
 					}
 					panic("CODE ME! - " + moduleName + " - " + options)
 				}
 			}
-			retCount++
 		} else {
+			// if here, we've found a field which does not start with '--' which is not part of module options
 			// we're done for this '-m match', opt out of this for{} loop
+			retCount-- // rewind
+			if not == true {
+				// make sure to rewind on the "!"
+				retCount--
+			}
+			done = true
 			break
 		}
 	}
-	return retCount, retMatch, parseErr
+	return retCount + 1, retMatch, parseErr
 }
 
-func appendUserDefined(udc []UserDefinedChain, chainName string, rule RuleSpec) []UserDefinedChain {
-	for iUDC, chain := range udc {
-		if chain.chain.name == chainName {
+func appendUserDefined(udcList []UserDefinedChain, name TargetName, rule RuleSpec) []UserDefinedChain {
+	for iUDC, udc := range udcList {
+		if udc.name == name {
 			//fmt.Printf("\t[%d] Existing chain %s, appending rule - rules count = ",iUDC, udc[iUDC].chain.name)
-			udc[iUDC].rules = append(udc[iUDC].rules, rule)
+			udcList[iUDC].rules = append(udcList[iUDC].rules, rule)
 			//fmt.Printf("%d\n", len(udc[iUDC].rules))
-			return udc
+			return udcList
 		}
 	}
 	// if here, could not find chainName, so just add it as first
 	var newRule []RuleSpec
 	newRule = append(newRule, rule)
-	newChain := Chain{
-		name: chainName,
-	}
 	newUDC := UserDefinedChain{
-		chain: newChain,
+		name:  name,
 		rules: newRule,
 	}
-	udc = append(udc, newUDC)
+	udcList = append(udcList, newUDC)
 	//fmt.Printf("\tAdding new chain %s\n", newChain.name)
-	return udc
+	return udcList
 }
 
 func parseFilter(lines map[int]string, isIPv6 bool) (TableFilter, ParseError) {
 	var table TableFilter
 	var err ParseError
-	chains := findChains(lines)
-	table.chains = chains
+	chains := findDefaultPolicies(lines)
+	table.defaultPolicies = chains
 
 	for key, value := range lines {
-		fmt.Printf("%d > '%s'\n", key, value)
+		//fmt.Printf("%d > '%s'\n", key, value)
 		split := strings.Fields(strings.TrimSpace(value))
 		switch split[0] {
 		case "-I":
@@ -1777,7 +2306,7 @@ func parseFilter(lines map[int]string, isIPv6 bool) (TableFilter, ParseError) {
 			}
 			err.line = key
 			err.msg = "-I (insert) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-A":
 			// append chain rule
 			rule, err := parseRuleSpec(split[2:], isIPv6, key)
@@ -1792,19 +2321,19 @@ func parseFilter(lines map[int]string, isIPv6 bool) (TableFilter, ParseError) {
 				default:
 					// add it to UserDefinedChain
 					//fmt.Printf("Found %s: %s\n", split[1], rule)
-					table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
+					table.userdefined = appendUserDefined(table.userdefined, TargetName(split[1]), rule)
 				}
 			}
 		case "-D":
 			// delete chain rule
 			err.line = key
 			err.msg = "-D (delete) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-R":
 			// replace chain pos spec
 			err.line = key
 			err.msg = "-R (replace) not currently supported"
-			panic(err.err)
+			panic(err)
 		}
 	}
 
@@ -1814,8 +2343,8 @@ func parseFilter(lines map[int]string, isIPv6 bool) (TableFilter, ParseError) {
 func parseNat(lines map[int]string, isIPv6 bool) (TableNat, ParseError) {
 	var table TableNat
 	var err ParseError
-	chains := findChains(lines)
-	table.chains = chains
+	chains := findDefaultPolicies(lines)
+	table.defaultPolicies = chains
 
 	for key, value := range lines {
 		split := strings.Fields(strings.TrimSpace(value))
@@ -1824,32 +2353,32 @@ func parseNat(lines map[int]string, isIPv6 bool) (TableNat, ParseError) {
 			// insert chain [pos] rule - if pos is not there, it's same as append
 			err.line = key
 			err.msg = "-I (insert) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-A":
 			// append chain rule
 			rule, err := parseRuleSpec(split[2:], isIPv6, key)
 			if err.msg == "" {
-				switch split[1] {
-				case "PREROUTING ":
+				switch ChainName(split[1]) {
+				case ChainPREROUTING:
 					table.builtInPrerouting = append(table.builtInPrerouting, rule)
-				case "OUTPUT":
+				case ChainOUTPUT:
 					table.builtInOutput = append(table.builtInOutput, rule)
-				case "POSTROUTING":
+				case ChainPOSTROUTING:
 					table.builtInPostrouting = append(table.builtInPostrouting, rule)
 				default:
-					table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
+					table.userdefined = appendUserDefined(table.userdefined, TargetName(split[1]), rule)
 				}
 			}
 		case "-D":
 			// delete chain rule
 			err.line = key
 			err.msg = "-D (delete) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-R":
 			// replace chain pos spec
 			err.line = key
 			err.msg = "-R (replace) not currently supported"
-			panic(err.err)
+			panic(err)
 		}
 	}
 
@@ -1859,8 +2388,8 @@ func parseNat(lines map[int]string, isIPv6 bool) (TableNat, ParseError) {
 func parseMangle(lines map[int]string, isIPv6 bool) (TableMangle, ParseError) {
 	var table TableMangle
 	var err ParseError
-	chains := findChains(lines)
-	table.chains = chains
+	chains := findDefaultPolicies(lines)
+	table.defaultPolicies = chains
 
 	for key, value := range lines {
 		split := strings.Fields(strings.TrimSpace(value))
@@ -1869,37 +2398,37 @@ func parseMangle(lines map[int]string, isIPv6 bool) (TableMangle, ParseError) {
 			// insert chain [pos] rule - if pos is not there, it's same as append
 			err.line = key
 			err.msg = "-I (insert) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-A":
 			// append chain rule
 			rule := RuleSpec{rule: strings.Join(split[2:], " ")}
 			rule, err := parseRuleSpec(split[2:], isIPv6, key)
 			if err.msg == "" {
-				switch split[1] {
-				case "PREROUTING":
+				switch ChainName(split[1]) {
+				case ChainPREROUTING:
 					table.builtInPrerouting = append(table.builtInPrerouting, rule)
-				case "INPUT":
+				case ChainINPUT:
 					table.builtInInput = append(table.builtInInput, rule)
-				case "OUTPUT":
+				case ChainOUTPUT:
 					table.builtInOutput = append(table.builtInOutput, rule)
-				case "FORWARD":
+				case ChainFORWARD:
 					table.builtInForward = append(table.builtInForward, rule)
-				case "POSTROUTING":
+				case ChainPOSTROUTING:
 					table.builtInPostrouting = append(table.builtInPostrouting, rule)
 				default:
-					table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
+					table.userdefined = appendUserDefined(table.userdefined, TargetName(split[1]), rule)
 				}
 			}
 		case "-D":
 			// delete chain rule
 			err.line = key
 			err.msg = "-D (delete) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-R":
 			// replace chain pos spec
 			err.line = key
 			err.msg = "-R (replace) not currently supported"
-			panic(err.err)
+			panic(err)
 		}
 	}
 
@@ -1909,8 +2438,8 @@ func parseMangle(lines map[int]string, isIPv6 bool) (TableMangle, ParseError) {
 func parseRaw(lines map[int]string, isIPv6 bool) (TableRaw, ParseError) {
 	var table TableRaw
 	var err ParseError
-	chains := findChains(lines)
-	table.chains = chains
+	chains := findDefaultPolicies(lines)
+	table.defaultPolicies = chains
 
 	for key, value := range lines {
 		split := strings.Fields(strings.TrimSpace(value))
@@ -1919,30 +2448,30 @@ func parseRaw(lines map[int]string, isIPv6 bool) (TableRaw, ParseError) {
 			// insert chain [pos] rule - if pos is not there, it's same as append
 			err.line = key
 			err.msg = "-I (insert) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-A":
 			// append chain rule
 			rule, err := parseRuleSpec(split[2:], isIPv6, key)
 			if err.msg == "" {
-				switch split[1] {
-				case "PREROUTING":
+				switch ChainName(split[1]) {
+				case ChainPREROUTING:
 					table.builtInPrerouting = append(table.builtInPrerouting, rule)
-				case "OUTPUT":
+				case ChainOUTPUT:
 					table.builtInOutput = append(table.builtInOutput, rule)
 				default:
-					table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
+					table.userdefined = appendUserDefined(table.userdefined, TargetName(split[1]), rule)
 				}
 			}
 		case "-D":
 			// delete chain rule
 			err.line = key
 			err.msg = "-D (delete) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-R":
 			// replace chain pos spec
 			err.line = key
 			err.msg = "-R (replace) not currently supported"
-			panic(err.err)
+			panic(err)
 		}
 	}
 
@@ -1952,8 +2481,8 @@ func parseRaw(lines map[int]string, isIPv6 bool) (TableRaw, ParseError) {
 func parseSecurity(lines map[int]string, isIPv6 bool) (TableSecurity, ParseError) {
 	var table TableSecurity
 	var err ParseError
-	chains := findChains(lines)
-	table.chains = chains
+	chains := findDefaultPolicies(lines)
+	table.defaultPolicies = chains
 
 	for key, value := range lines {
 		split := strings.Fields(strings.TrimSpace(value))
@@ -1962,7 +2491,7 @@ func parseSecurity(lines map[int]string, isIPv6 bool) (TableSecurity, ParseError
 			// insert chain [pos] rule - if pos is not there, it's same as append
 			err.line = key
 			err.msg = "-I (insert) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-A":
 			// append chain rule
 			rule, err := parseRuleSpec(split[2:], isIPv6, key)
@@ -1975,19 +2504,19 @@ func parseSecurity(lines map[int]string, isIPv6 bool) (TableSecurity, ParseError
 				case "FORWARD":
 					table.builtInForward = append(table.builtInForward, rule)
 				default:
-					table.userdefined = appendUserDefined(table.userdefined, split[1], rule)
+					table.userdefined = appendUserDefined(table.userdefined, TargetName(split[1]), rule)
 				}
 			}
 		case "-D":
 			// delete chain rule
 			err.line = key
 			err.msg = "-D (delete) not currently supported"
-			panic(err.err)
+			panic(err)
 		case "-R":
 			// replace chain pos spec
 			err.line = key
 			err.msg = "-R (replace) not currently supported"
-			panic(err.err)
+			panic(err)
 		}
 	}
 

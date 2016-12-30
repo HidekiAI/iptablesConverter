@@ -4,10 +4,14 @@ import (
 	"iptablesConverter/iptables"
 	"iptablesConverter/nftables"
 	"iptablesConverter/packetfilter"
+	"log"
 )
 
 func ReadIPTables(path string) iptables.Iptables {
-	ipt, _ := iptables.Read(path)
+	ipt, err := iptables.Read(path)
+	if err.msg != "" {
+		log.Panicln("Parse error at line ", err.line, err.msg, err.err)
+	}
 	return ipt
 }
 

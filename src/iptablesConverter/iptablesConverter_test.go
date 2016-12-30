@@ -3,14 +3,14 @@ package iptablesConverter
 import "testing"
 
 func ReadIPTables4Test(t *testing.T) {
-	f := "/etc/iptables.rules"
+	f := "iptables.rules"
 	t.Log("Reading " + f)
 	ipt := ReadIPTables(f)
 	t.Log(ipt)
 }
 
 func ReadIPTables6Test(t *testing.T) {
-	f := "/etc/ip6tables.rules"
+	f := "ip6tables.rules"
 	t.Log("Reading " + f)
 	ipt := ReadIPTables(f)
 	t.Log(ipt)

@@ -9,8 +9,8 @@ func dumpTable(tab Iptables, t *testing.T) {
 	}
 
 	t.Logf("Protocol: %d\n", tab.family)
-	for i, chain := range tab.filter.chains {
-		t.Logf("[%d] CHAIN: '%s' -> '%s'", i, chain.name, chain.target)
+	for i, policy := range tab.filter.defaultPolicies {
+		t.Logf("[%d] Default chain policy: '%s' -> '%s' [%d:%d]", i, policy.chainName, policy.policy, policy.packetCounter, policy.byteCounter)
 	}
 	for i, filter := range tab.filter.builtInInput {
 		t.Logf("[%d] -A INPUT -> '%s'\n", i, filter.rule)
@@ -23,13 +23,13 @@ func dumpTable(tab Iptables, t *testing.T) {
 	}
 	for i, c := range tab.filter.userdefined {
 		for j, r := range c.rules {
-			t.Logf("[%d, %d] -A %s -> '%s'\n", i, j, c.chain.name, r.rule)
+			t.Logf("[%d, %d] -A %s -> '%s'\n", i, j, c.name, r.rule)
 		}
 	}
 }
 
 func TestReadv4(t *testing.T) {
-	path := "/etc/iptables.rules"
+	path := "iptables.rules"
 	t.Logf("Reading '%s'\n", path)
 	tab, err := Read(path)
 	if err.msg != "" {
@@ -43,7 +43,7 @@ func TestReadv4(t *testing.T) {
 }
 
 func TestReadv6(t *testing.T) {
-	path := "/etc/ip6tables.rules"
+	path := "ip6tables.rules"
 	t.Logf("Reading '%s'\n", path)
 	tab, err := Read(path)
 	if err.msg != "" {
