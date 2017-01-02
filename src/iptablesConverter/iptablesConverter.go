@@ -8,9 +8,11 @@ import (
 )
 
 func ReadIPTables(path string) iptables.Iptables {
-	ipt, err := iptables.Read(path)
-	if err.msg != "" {
-		log.Panicln("Parse error at line ", err.line, err.msg, err.err)
+	var ipt iptables.Iptables
+	var pe iptables.ParseError
+	ipt, pe = iptables.Read(path)
+	if pe.Msg != "" {
+		log.Panicln("Parse error at line ", pe.Line, pe.Msg, pe.Err)
 	}
 	return ipt
 }

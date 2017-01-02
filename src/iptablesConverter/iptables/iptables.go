@@ -16,13 +16,13 @@ import (
 // and RETURN means to stop traversing the chain and resume at the next rule where it
 // has jumped from.
 type ParseError struct {
-	line int
-	msg  string
-	err  error
+	Line int
+	Msg  string
+	Err  error
 }
 
 // RuleElement is an unparsed (pre-RuleSpec) sub-sections of Rule, before it gets converted to RuleSpec
-type RuleElement struct {
+type ruleElement struct {
 	//processed bool // yet another property for debugging, in which shuld default to false, so that if it remained false, it has not been visited/observed
 	// TODO: Currently, RuleElement are read-only type element, thus it's passed as copied reference
 	//       instead of pointer.  In the future, if want to enable the 'processed' (bool) flag, have
@@ -63,7 +63,7 @@ const (
 )
 
 // ChainCommand is a raw line of command
-type ChainCommand struct {
+type chainCommand struct {
 	text string // mainly for debug logging purpose
 
 	command CommandName // i.e. '-A', --append', -I', etc
@@ -71,21 +71,21 @@ type ChainCommand struct {
 }
 
 // TableRow is an unparsed (pre-RuleSpec) rule-specification and chain info in text/string form
-type TableRow struct {
-	commandArg   ChainCommand
-	ruleElements []RuleElement
+type tableRow struct {
+	commandArg   chainCommand
+	ruleElements []ruleElement
 
 	lineNum int    // mainly for debugging purpose, but useful to make sure rules we are processing is from same line
 	strRule string // mainly to preserve rule as-is in case we need it (also useful for debugging and logs)
 }
 
 // Table are collection of unparsed TableRows (pre-RuleSpec); series of chains
-type TableUnparsed struct {
+type tableUnparsed struct {
 	isIPv6      bool
 	builtinName string // i.e. "*filter", "*nat", "*raw", etc
 	lineStart   int    // because map() causes unordered collection, by having min/max
 	lineEnd     int    // of line numbers, it will make it easier to iterate for RuleSpec
-	rows        []TableRow
+	rows        []tableRow
 }
 
 // AddressFamily type representation
@@ -160,76 +160,76 @@ const (
 
 type Target struct {
 	//chainName ChainName  // i.e. INPUT, "FORWARD", "OUTPUT", "USERDEFINEDCHAIN"
-	target TargetName // i.e. "DROP", "ACCEPT", "RETURN", "LOGNDROP", "USERDEFINEDCHAIN"
-	audit  struct {
-		auditType string
+	Target TargetName // i.e. "DROP", "ACCEPT", "RETURN", "LOGNDROP", "USERDEFINEDCHAIN"
+	Audit  struct {
+		AuditType string
 	}
-	checksum struct {
-		fill bool
+	Checksum struct {
+		Fill bool
 	}
-	classify struct {
-		class [2]int // hex values of major:minor
+	Classify struct {
+		Class [2]int // hex values of major:minor
 	}
-	clusteripv4 struct {
-		new        bool
-		hashmode   string // Has to be one of sourceip, sourceip-sourceport, sourceip-sourceport-destport.
-		clustermac string // MAC
-		totalNodes int
-		localNode  int
-		hashInit   int // RNG seed
+	Clusteripv4 struct {
+		New        bool
+		Hashmode   string // Has to be one of sourceip, sourceip-sourceport, sourceip-sourceport-destport.
+		Clustermac string // MAC
+		TotalNodes int
+		LocalNode  int
+		HashInit   int // RNG seed
 	}
-	connMark struct {
+	ConnMark struct {
 	}
-	connSecMark struct {
+	ConnSecMark struct {
 	}
-	ct struct {
+	Ct struct {
 	}
-	dnat      struct{}
-	dnptv6    struct{}
-	dscp      struct{}
-	ecnv4     struct{}
-	hlv6      struct{}
-	hmark     struct{}
-	idleTimer struct{}
-	led       struct{}
-	log       struct {
-		logLevel       string // some distros uses integer, some distros will allow strings of emerg, alert, crit, error, warning, notice, info or debug (decreasing order of priority)
-		logPrefix      string // up to 29 chars
-		logTcpSequence bool
-		logTcpOptions  bool
-		logIpOptions   bool
-		logUID         bool
+	Dnat      struct{}
+	Dnptv6    struct{}
+	Dscp      struct{}
+	Ecnv4     struct{}
+	Hlv6      struct{}
+	Hmark     struct{}
+	IdleTimer struct{}
+	Led       struct{}
+	Log       struct {
+		LogLevel       string // some distros uses integer, some distros will allow strings of emerg, alert, crit, error, warning, notice, info or debug (decreasing order of priority)
+		LogPrefix      string // up to 29 chars
+		LogTcpSequence bool
+		LogTcpOptions  bool
+		LogIpOptions   bool
+		LogUID         bool
 	}
-	mark       struct{}
-	masquerade struct{}
-	mirrorv4   struct{}
-	netmap     struct{}
-	nflog      struct{}
-	nfqueue    struct{}
-	notrack    struct{}
-	rateEst    struct{}
-	redirect   struct{}
-	reject6    struct {
+	Mark       struct{}
+	Masquerade struct{}
+	Mirrorv4   struct{}
+	Netmap     struct{}
+	Nflog      struct{}
+	Nfqueue    struct{}
+	Notrack    struct{}
+	RateEst    struct{}
+	Redirect   struct{}
+	Reject6    struct {
 		// IPv6-specific: icmp6-no-route, no-route, icmp6-adm-prohibited, adm-prohibited, icmp6-addr-unreachable, addr-unreach, or icmp6-port-unreachable
-		rejectWith string
+		RejectWith string
 	}
-	reject4 struct {
+	Reject4 struct {
 		// IPv4-specific: icmp-net-unreachable, icmp-host-unreachable, icmp-port-unreachable, icmp-proto-unreachable, icmp-net-prohibited, icmp-host-prohibited, or icmp-admin-prohibited
-		rejectWith string
+		RejectWith string
 	}
-	same        struct{}
-	secMark     struct{}
-	set         struct{}
-	snat        struct{}
-	snptv6      struct{}
-	tcpMss      struct{}
-	tcpOptStrip struct{}
-	tee         struct{}
-	tos         struct{}
-	tproxy      struct{}
-	trace       struct{}
-	ttlv4       struct{}
-	ulogv4      struct{}
+	Same        struct{}
+	SecMark     struct{}
+	Set         struct{}
+	Snat        struct{}
+	Snptv6      struct{}
+	TcpMss      struct{}
+	TcpOptStrip struct{}
+	Tee         struct{}
+	Tos         struct{}
+	Tproxy      struct{}
+	Trace       struct{}
+	Ttlv4       struct{}
+	Ulogv4      struct{}
 }
 
 type Protocol string
@@ -250,59 +250,59 @@ const (
 type Source []string // i.e. '! -s address1/mask,address'
 type Destination []string
 type Match struct {
-	rule   string            // preserve raw string, used in case where converter cannot handle
-	module string            // i.e. '-m comment'
-	match  RuleSpecExtension // i.e. '-m comment --comment "this is comment"'
+	Rule   string            // preserve raw string, used in case where converter cannot handle
+	Module string            // i.e. '-m comment'
+	Match  RuleSpecExtension // i.e. '-m comment --comment "this is comment"'
 }
 type NetworkInterface string
 
 // RuleSpec: see man 8 iptables - Note that Target is embedded only when '--jump' is encountered
 type RuleSpec struct {
-	rule   string // preserve raw string, used in case where converter cannot handle
-	line   int    // mainly for error purpose
-	result string // again, for debugging purpose to track in the end what was processed and in what order
+	Rule   string // preserve raw string, used in case where converter cannot handle
+	Line   int    // mainly for error purpose
+	Result string // again, for debugging purpose to track in the end what was processed and in what order
 
 	//family: i.e. '-4', '--ipv4', '-6', '--ipv6'
-	family AddressFamily
+	Family AddressFamily
 	//protocol: [!] -p, --protocol protocol
-	protocol struct {
-		not bool     // i.e. '! -p tcp'
-		p   Protocol // i.e. '-p udp'
+	Protocol struct {
+		Not bool     // i.e. '! -p tcp'
+		P   Protocol // i.e. '-p udp'
 	}
 	// source: [!] -s, --source address[/mask],[,...]
-	source struct {
-		not bool // i.e. '-s 192.168.42.0/16,192.168.69.0/8', '! -s 127.0.0.1'
-		s   Source
+	Source struct {
+		Not bool // i.e. '-s 192.168.42.0/16,192.168.69.0/8', '! -s 127.0.0.1'
+		S   Source
 	}
 	// destination: [!] -d, --destination address[/mask][,...]
-	destination struct {
-		not bool
-		d   Destination // i.e. '-d 0.0.0.0/0', '-d ::1/128'
+	Destination struct {
+		Not bool
+		D   Destination // i.e. '-d 0.0.0.0/0', '-d ::1/128'
 	}
 	// match: -m, --match match
-	match Match // i.e. '-m comment --comment "this is comment"'
+	Match Match // i.e. '-m comment --comment "this is comment"'
 	// jump: -j, --jump atarget (when '-j RETURN' is encountered, it returns back to the caller, but if it is at the default chain, it is up to what is set at the heading i.e. ':INPUT DROP [0:0]')
-	jumpToTarget Target // i.e. '-j ACCEPT', '--jump LOGNDROP', '-j RETURN'
+	JumpToTarget Target // i.e. '-j ACCEPT', '--jump LOGNDROP', '-j RETURN'
 	// goto: -g, --goto chain (when '-j RETURN' is encountered, back to the calling --jump of another chain)
-	gotoChain ChainName // i.e. '-g OUTPUT', '--goto USERDEFINEDCHAIN'
+	GotoChain ChainName // i.e. '-g OUTPUT', '--goto USERDEFINEDCHAIN'
 	// inInterface: [!] -i, --in-interface name
-	inInterface struct {
-		not  bool // i.e. '-i lo', '! -i eth2'
-		name NetworkInterface
+	InInterface struct {
+		Not  bool // i.e. '-i lo', '! -i eth2'
+		Name NetworkInterface
 	}
 	//outInterface: [!] -o, --out-interface name
-	outInterface struct {
-		not  bool
-		name NetworkInterface // i.e. '-o any'
+	OutInterface struct {
+		Not  bool
+		Name NetworkInterface // i.e. '-o any'
 	}
 	// fragment: [!] -f, --fragment
-	fragment struct {
-		not bool // i.e. '-f', '! -f'
+	Fragment struct {
+		Not bool // i.e. '-f', '! -f'
 	}
 	// Counters: -c, --set-counters packets, bytes
-	counters struct {
-		packets int
-		bytes   int
+	Counters struct {
+		Packets int
+		Bytes   int
 	}
 }
 
@@ -354,26 +354,26 @@ const (
 type RuleSpecExtension struct {
 	// format: '-m name moduleoptions'
 	// i.e. '-m comment --comment "this is a comment" -j log'
-	addrtype struct {
-		notSrc        bool
-		srcType       AddressType
-		notDst        bool
-		dstType       AddressType
-		limitIfaceIn  bool
-		limitIfaceOut bool
+	Addrtype struct {
+		NotSrc        bool
+		SrcType       AddressType
+		NotDst        bool
+		DstType       AddressType
+		LimitIfaceIn  bool
+		LimitIfaceOut bool
 	}
-	ah struct {
-		not bool
-		spi []string
+	Ah struct {
+		Not bool
+		Spi []string
 	}
-	ahIPv6 struct {
-		notSPI    bool
-		spi       []string
-		notLength bool
-		length    int
-		res       bool
+	AhIPv6 struct {
+		NotSPI    bool
+		Spi       []string
+		NotLength bool
+		Length    int
+		Res       bool
 	}
-	bpf struct {
+	Bpf struct {
 		// i.e. iptables -A OUTPUT -m bpf --bytecode '4,48 0 0 9,21 0 1 6,6 0 0 1,6 0 0 0' -j ACCEPT
 		//	4               # number of instructions
 		//	48 0 0 9        # load byte  ip->proto
@@ -381,84 +381,84 @@ type RuleSpecExtension struct {
 		//	6 0 0 1         # return     pass (non-zero)
 		//	6 0 0 0         # return     fail (zero)
 		// i.e. iptables -A OUTPUT -m bpf --bytecode "`nfbpf_compile RAW 'ip proto 6'`" -j ACCEPT
-		byteCode string
+		ByteCode string
 	}
-	cluster struct {
-		totalNodes       int
-		notLocalNodeMask bool
-		localNodeMask    int
-		hashSeed         int
+	Cluster struct {
+		TotalNodes       int
+		NotLocalNodeMask bool
+		LocalNodeMask    int
+		HashSeed         int
 	}
-	comment struct {
-		comment string
+	Comment struct {
+		Comment string
 	}
-	connbytes struct {
+	Connbytes struct {
 	}
-	connlabel struct {
+	Connlabel struct {
 	}
-	connlimit struct {
+	Connlimit struct {
 	}
-	connmark struct {
+	Connmark struct {
 	}
-	conntrack struct {
-		notStateList       bool
-		stateList          []ConnTrackState // csv states to match of INVALID|NEW|ESTABLISHED|RELATED|UNTRACKED|SNAT|DNAT
-		notProto           bool
-		l4Proto            string // layer-4 protocol to match (by number or name)
-		notOriginalSrc     bool
-		originalSrc        string // address[/mask]
-		notOriginalDst     bool
-		originalDst        string
-		notReplySrc        bool
-		replySrc           string
-		notReplyDst        bool
-		replyDst           string
-		notOriginalSrcPort bool
-		originalSrcPort    [2]int // range, i.e. '--ctorigsrcport 1024:2048'
-		notOriginalDstPort bool
-		originalDstPort    [2]int
-		notReplySrcPort    bool
-		replySrcPort       [2]int
-		notReplyDstPort    bool
-		replyDstPort       [2]int
-		notStatusList      bool
-		statusList         []ConnTrackStatus // csv of NONE|EXPECTED|SEEN_REPLY|ASSURED|CONFIRMED
-		notExpire          bool
-		expire             [2]int       // remaining lifetime in seconds
-		dir                ConnTrackDir // either ORIGINAL|REPLY
+	Conntrack struct {
+		NotStateList       bool
+		StateList          []ConnTrackState // csv states to match of INVALID|NEW|ESTABLISHED|RELATED|UNTRACKED|SNAT|DNAT
+		NotProto           bool
+		L4Proto            string // layer-4 protocol to match (by number or name)
+		NotOriginalSrc     bool
+		OriginalSrc        string // address[/mask]
+		NotOriginalDst     bool
+		OriginalDst        string
+		NotReplySrc        bool
+		ReplySrc           string
+		NotReplyDst        bool
+		ReplyDst           string
+		NotOriginalSrcPort bool
+		OriginalSrcPort    [2]int // range, i.e. '--ctorigsrcport 1024:2048'
+		NotOriginalDstPort bool
+		OriginalDstPort    [2]int
+		NotReplySrcPort    bool
+		ReplySrcPort       [2]int
+		NotReplyDstPort    bool
+		ReplyDstPort       [2]int
+		NotStatusList      bool
+		StatusList         []ConnTrackStatus // csv of NONE|EXPECTED|SEEN_REPLY|ASSURED|CONFIRMED
+		NotExpire          bool
+		Expire             [2]int       // remaining lifetime in seconds
+		Dir                ConnTrackDir // either ORIGINAL|REPLY
 	}
-	cpu struct {
+	Cpu struct {
 	}
-	dccp struct {
+	Dccp struct {
 	}
-	devgroup struct {
+	Devgroup struct {
 	}
-	dscp struct {
+	Dscp struct {
 	}
-	dst struct {
+	Dst struct {
 	}
-	ecn struct {
+	Ecn struct {
 	}
-	esp struct {
+	Esp struct {
 	}
-	eui64IPv6 struct {
+	Eui64IPv6 struct {
 	}
-	fragIPv6 struct {
+	FragIPv6 struct {
 	}
-	hashlimit struct {
+	Hashlimit struct {
 	}
-	hbhIPv6 struct {
+	HbhIPv6 struct {
 	}
-	helper struct {
+	Helper struct {
 	}
-	hlIPv6 struct {
+	HlIPv6 struct {
 		// hop limit
-		neq bool
-		eq  int
-		lt  int
-		gt  int
+		Neq bool
+		Eq  int
+		Lt  int
+		Gt  int
 	}
-	icmp struct {
+	Icmp struct {
 		// Valid ICMP Types:
 		//	any
 		//	echo-reply (pong)
@@ -497,10 +497,10 @@ type RuleSpecExtension struct {
 		//	timestamp-reply
 		//	address-mask-request
 		//	address-mask-reply
-		not      bool
-		icmpType string // type[/code] | typename (see 'iptables -p icmp -h')
+		Not      bool
+		IcmpType string // type[/code] | typename (see 'iptables -p icmp -h')
 	}
-	icmp6 struct {
+	Icmp6 struct {
 		// Valid ICMPv6 Types:
 		//	destination-unreachable
 		//		no-route
@@ -522,104 +522,104 @@ type RuleSpecExtension struct {
 		//	neighbour-solicitation (neighbor-solicitation)
 		//	neighbour-advertisement (neighbor-advertisement)
 		//	redirect
-		not        bool
-		icmpv6Type string // type[/code] | typename (see 'ip6tables -p ipv6-icmp -h')
+		Not        bool
+		Icmpv6Type string // type[/code] | typename (see 'ip6tables -p ipv6-icmp -h')
 	}
 
-	iprange struct {
+	Iprange struct {
 	}
-	ipv6header struct {
+	Ipv6header struct {
 	}
-	ipvs struct {
+	Ipvs struct {
 	}
-	length struct {
+	Length struct {
 	}
-	limit struct {
-		rate  string // i.e. '3/hour'
-		burst int
+	Limit struct {
+		Rate  string // i.e. '3/hour'
+		Burst int
 	}
-	mac struct {
+	Mac struct {
 	}
-	mark struct {
+	Mark struct {
 	}
-	mhIPv6 struct {
+	MhIPv6 struct {
 	}
-	multiport struct {
-		notSPorts bool
-		sports    []string // i.e. 53,1024:65535 means 53 and range 1024:65535
-		notDPorts bool
-		dports    []string
-		notPorts  bool
-		ports     []string
+	Multiport struct {
+		NotSPorts bool
+		Sports    []string // i.e. 53,1024:65535 means 53 and range 1024:65535
+		NotDPorts bool
+		Dports    []string
+		NotPorts  bool
+		Ports     []string
 	}
-	nfacct struct {
+	Nfacct struct {
 	}
-	osf struct {
+	Osf struct {
 	}
-	owner struct {
+	Owner struct {
 	}
-	physdev struct {
+	Physdev struct {
 	}
-	pkttype struct {
+	Pkttype struct {
 	}
-	policy struct {
+	Policy struct {
 	}
-	quota struct {
+	Quota struct {
 	}
-	rateest struct {
+	Rateest struct {
 	}
-	realmIPv4 struct {
+	RealmIPv4 struct {
 	}
-	recent struct {
+	Recent struct {
 	}
-	rpfilter struct {
+	Rpfilter struct {
 	}
-	rtIPv6 struct {
+	RtIPv6 struct {
 	}
-	sctp struct {
+	Sctp struct {
 	}
-	set struct {
+	Set struct {
 	}
-	socket struct {
+	Socket struct {
 	}
-	state struct {
-		notState  bool
-		stateList []StateState
+	State struct {
+		NotState  bool
+		StateList []StateState
 	}
-	statistic struct {
+	Statistic struct {
 	}
-	stringMatch struct {
+	StringMatch struct {
 	}
-	tcp struct {
-		notSPort  bool
-		sport     [2]int // ranged port (i.e. "--sport 1024:2048")
-		notDPort  bool
-		dport     [2]int // ranged
-		notFlags  bool
-		flagsMask []string // csv i.e. 'SYN,ACK,FIN,RST'
-		flagsComp []string // csv what to be set i.e. 'ALL'
-		notSyn    bool
-		syn       bool
-		notOption bool
-		option    int
+	Tcp struct {
+		NotSPort  bool
+		Sport     [2]int // ranged port (i.e. "--sport 1024:2048")
+		NotDPort  bool
+		Dport     [2]int // ranged
+		NotFlags  bool
+		FlagsMask []string // csv i.e. 'SYN,ACK,FIN,RST'
+		FlagsComp []string // csv what to be set i.e. 'ALL'
+		NotSyn    bool
+		Syn       bool
+		NotOption bool
+		Option    int
 	}
-	tcpmss struct {
+	Tcpmss struct {
 	}
-	time struct {
+	Time struct {
 	}
-	tos struct {
+	Tos struct {
 	}
-	ttlIPv4 struct {
+	TtlIPv4 struct {
 	}
-	u32 struct {
+	U32 struct {
 	}
-	udp struct {
-		notSPort bool
-		sport    [2]int
-		notDPort bool
-		dport    [2]int
+	Udp struct {
+		NotSPort bool
+		Sport    [2]int
+		NotDPort bool
+		Dport    [2]int
 	}
-	uncleanIPv4 struct {
+	UncleanIPv4 struct {
 	}
 }
 
@@ -629,73 +629,73 @@ type RuleSpecExtension struct {
 // It also contains 'packetCounter:byteCounter' settings but it is ignored (for now)
 // since it has no use for parsing and converting to other NF tables usages
 type DefaultChainPolicy struct {
-	chainName     ChainName
-	policy        TargetName
-	packetCounter int
-	byteCounter   int
+	ChainName     ChainName
+	Policy        TargetName
+	PacketCounter int
+	ByteCounter   int
 }
 
 // UserDefinedChain are chains that are not built-in
 type UserDefinedChain struct {
-	name  TargetName
-	rules []RuleSpec
+	Name  TargetName
+	Rules []RuleSpec
 }
 
 //TableRaw represents the '*raw' table block
 // see TABLES section from http://ipset.netfilter.org/iptables.man.html
 type TableRaw struct {
-	defaultPolicies   []DefaultChainPolicy
-	builtInPrerouting []RuleSpec
-	builtInOutput     []RuleSpec
-	userdefined       []UserDefinedChain
+	DefaultPolicies   []DefaultChainPolicy
+	BuiltInPrerouting []RuleSpec
+	BuiltInOutput     []RuleSpec
+	Userdefined       []UserDefinedChain
 }
 
 //TableNat represents the '*nat' table block
 type TableNat struct {
-	defaultPolicies    []DefaultChainPolicy
-	builtInPrerouting  []RuleSpec
-	builtInOutput      []RuleSpec
-	builtInPostrouting []RuleSpec
-	userdefined        []UserDefinedChain
+	DefaultPolicies    []DefaultChainPolicy
+	BuiltInPrerouting  []RuleSpec
+	BuiltInOutput      []RuleSpec
+	BuiltInPostrouting []RuleSpec
+	Userdefined        []UserDefinedChain
 }
 
 //TableMangle represents the '*mangle' table block
 type TableMangle struct {
-	defaultPolicies    []DefaultChainPolicy
-	builtInPrerouting  []RuleSpec
-	builtInOutput      []RuleSpec
-	builtInInput       []RuleSpec
-	builtInForward     []RuleSpec
-	builtInPostrouting []RuleSpec
-	userdefined        []UserDefinedChain
+	DefaultPolicies    []DefaultChainPolicy
+	BuiltInPrerouting  []RuleSpec
+	BuiltInOutput      []RuleSpec
+	BuiltInInput       []RuleSpec
+	BuiltInForward     []RuleSpec
+	BuiltInPostrouting []RuleSpec
+	Userdefined        []UserDefinedChain
 }
 
 //TableFilter represents the '*filter' table block
 type TableFilter struct {
-	defaultPolicies []DefaultChainPolicy
-	builtInInput    []RuleSpec
-	builtInForward  []RuleSpec
-	builtInOutput   []RuleSpec
-	userdefined     []UserDefinedChain
+	DefaultPolicies []DefaultChainPolicy
+	BuiltInInput    []RuleSpec
+	BuiltInForward  []RuleSpec
+	BuiltInOutput   []RuleSpec
+	Userdefined     []UserDefinedChain
 }
 
 //TableSecurity represents the '*security' table block
 type TableSecurity struct {
-	defaultPolicies []DefaultChainPolicy
-	builtInInput    []RuleSpec
-	builtInOutput   []RuleSpec
-	builtInForward  []RuleSpec
-	userdefined     []UserDefinedChain
+	DefaultPolicies []DefaultChainPolicy
+	BuiltInInput    []RuleSpec
+	BuiltInOutput   []RuleSpec
+	BuiltInForward  []RuleSpec
+	Userdefined     []UserDefinedChain
 }
 
 //Iptables is a struct representing collections of tables
 type Iptables struct {
-	family   AddressFamily
-	raw      TableRaw
-	nat      TableNat
-	mangle   TableMangle
-	filter   TableFilter
-	security TableSecurity
+	Family   AddressFamily
+	Raw      TableRaw
+	Nat      TableNat
+	Mangle   TableMangle
+	Filter   TableFilter
+	Security TableSecurity
 }
 
 // Read the 'iptables.rules' file without validations.  This should/would not
@@ -721,7 +721,7 @@ func Read(path string) (Iptables, ParseError) {
 	var securityBlock map[int]string = make(map[int]string, 0)
 	var line string
 	currentBlockRef := filterBlock // map is ref type 'map[int]string []'
-	ret.family = IPv4
+	ret.Family = IPv4
 	scanner := bufio.NewScanner(file)
 	lineCount := 1
 
@@ -732,9 +732,9 @@ func Read(path string) (Iptables, ParseError) {
 		line = strings.TrimSpace(scanner.Text())
 		if line != "" {
 
-			if ret.family != IPv6 {
+			if ret.Family != IPv6 {
 				if isIPv6(line) {
-					ret.family = IPv6
+					ret.Family = IPv6
 				}
 			}
 
@@ -763,11 +763,11 @@ func Read(path string) (Iptables, ParseError) {
 	}
 
 	// parse each blocks
-	ret.filter, err = parseFilter(filterBlock, ret.family == IPv6)
-	ret.mangle, err = parseMangle(mangleBlock, ret.family == IPv6)
-	ret.nat, err = parseNat(natBlock, ret.family == IPv6)
-	ret.raw, err = parseRaw(rawBlock, ret.family == IPv6)
-	ret.security, err = parseSecurity(securityBlock, ret.family == IPv6)
+	ret.Filter, err = parseFilter(filterBlock, ret.Family == IPv6)
+	ret.Mangle, err = parseMangle(mangleBlock, ret.Family == IPv6)
+	ret.Nat, err = parseNat(natBlock, ret.Family == IPv6)
+	ret.Raw, err = parseRaw(rawBlock, ret.Family == IPv6)
+	ret.Security, err = parseSecurity(securityBlock, ret.Family == IPv6)
 
 	return ret, err
 }
@@ -822,10 +822,10 @@ func findDefaultPolicies(lines map[int]string) []DefaultChainPolicy {
 		if strings.HasPrefix(value, ":") {
 			split := strings.Fields(strings.TrimLeft(value, ":"))
 			ret = append(ret, DefaultChainPolicy{
-				chainName:     ChainName(split[0]),  // i.e. "INPUT", "FORWARD", "MYCHAIN"
-				policy:        TargetName(split[1]), // i.e. "DROP", "-", "REJECT"
-				packetCounter: 0,
-				byteCounter:   0,
+				ChainName:     ChainName(split[0]),  // i.e. "INPUT", "FORWARD", "MYCHAIN"
+				Policy:        TargetName(split[1]), // i.e. "DROP", "-", "REJECT"
+				PacketCounter: 0,
+				ByteCounter:   0,
 			})
 		}
 	}
@@ -931,12 +931,12 @@ func parseQuotedText(strList []string) (string, int) {
 // but what we may get if it was user/hand edited iptables.rules which may look:
 //	'-A INPUT -p udp -s 192.168.0.0/16 -d 0/0 --sport ntp --dport ntp -j ACCEPT'
 // where '--sport' and '--dport' comes several fields after the '-p udp' (protocol) module
-func makeRuleElementList(rule string) []RuleElement {
-	var optionList []RuleElement
+func makeRuleElementList(rule string) []ruleElement {
+	var optionList []ruleElement
 	fields := strings.Fields(strings.TrimSpace(rule))
 	for i := 0; i < len(fields); i++ {
 		//sp := RuleElement{lineNum: line, processed: false}
-		sp := RuleElement{}
+		sp := ruleElement{}
 		field := fields[i]
 
 		if field == "!" {
@@ -1005,9 +1005,9 @@ func makeRuleElementList(rule string) []RuleElement {
 
 // IN: line containing chain commands (i.e. '-A INPUT -p udp --sport 666 -j ACCEPT')
 // OUT: ChainCommand and new string with ChainCommand sliced off
-func getChainCommand(s string) (ChainCommand, string) {
+func getChainCommand(s string) (chainCommand, string) {
 	slice := strings.Split(strings.TrimSpace(s), " ")
-	cc := ChainCommand{
+	cc := chainCommand{
 		text: strings.Join(slice[0:2], " "), // first 2 element _SHOULD_ indicate command+chainName
 	}
 
@@ -1052,8 +1052,8 @@ func getChainCommand(s string) (ChainCommand, string) {
 // line which starts with a "*" and "COMMIT"
 // a Table consists of series of chains, and each chain usually starts with "-A INPUT", "-A OUTPUT",
 // "-A FORWARD", "-A MYUSERDEFINEDCHAIN", etc
-func buildTable(tableName string, rules map[int]string, isIPv6 bool) TableUnparsed {
-	table := TableUnparsed{
+func buildTable(tableName string, rules map[int]string, isIPv6 bool) tableUnparsed {
+	table := tableUnparsed{
 		builtinName: tableName, isIPv6: isIPv6, lineStart: 0, lineEnd: 0,
 	}
 
@@ -1074,17 +1074,17 @@ func buildTable(tableName string, rules map[int]string, isIPv6 bool) TableUnpars
 		// slice away the Chain COMMAND (i.e. '-A INPUT') before we make []RuleElement
 		command, ruleWithoutCommand := getChainCommand(value)
 		ruleLine := makeRuleElementList(ruleWithoutCommand)
-		row := TableRow{commandArg: command, ruleElements: ruleLine, lineNum: key, strRule: value}
+		row := tableRow{commandArg: command, ruleElements: ruleLine, lineNum: key, strRule: value}
 		table.rows = append(table.rows, row)
 	}
 
 	return table
 }
 
-func findOpcode(opcode []string, ruleElementList []RuleElement) (bool, int, RuleElement) {
+func findOpcode(opcode []string, ruleElementList []ruleElement) (bool, int, ruleElement) {
 	//log.Printf("\t\tSearching for opcodes '%s' in '%v'\n", opcode, ruleElementList)
 	i := 0
-	var re RuleElement
+	var re ruleElement
 	found := false
 	for i, re = range ruleElementList {
 		for _, o := range opcode {
@@ -1105,23 +1105,23 @@ func findOpcode(opcode []string, ruleElementList []RuleElement) (bool, int, Rule
 	return found, i, re
 }
 
-func parseTargetExtensions(ruleElementList []RuleElement) Target {
+func parseTargetExtensions(ruleElementList []ruleElement) Target {
 	// i.e. 'iptables -A AUDIT_DROP -j AUDIT --type drop'
 	found, _, jumpStatement := findOpcode([]string{"-j", "--jump"}, ruleElementList)
 	if found == false {
 		return Target{}
 	}
 	// first param is always assumed to be the TARGET (i.e. '-j ACCEPT', '-j MYUSERDEFINEDCHAIN', etc)
-	retT := Target{target: TargetName(strings.ToUpper(jumpStatement.operand.sParam))}
+	retT := Target{Target: TargetName(strings.ToUpper(jumpStatement.operand.sParam))}
 
-	//log.Printf("\tTARGET: '%s' - %v\n", retT.target, jumpStatement)
+	//log.Printf("\tTARGET: '%s' - %v\n", retT.Target, jumpStatement)
 	// find ALL extended options based on TARGET
 	done := false
 	for _, s := range ruleElementList {
 		if done {
 			break
 		}
-		switch retT.target {
+		switch retT.Target {
 		// default targets: ACCEPT, DROP, and RETURN
 		case TargetACCEPT:
 			{
@@ -1148,7 +1148,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--type":
 					{
 						// --type {accept|drop|reject}
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1159,7 +1159,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--checksum-fill":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1170,7 +1170,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--set-class":
 					{
 						// --set-class major:minor
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1181,32 +1181,32 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--new":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hasmode":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--clustermac":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--toal-nodes":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--local-node":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hash-init":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1216,37 +1216,37 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--set-xmark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--save-mark":
 					{
 						// --save-mark [--nfmask nfmask] [--ctmask ctmask] or if --set-xmark enabled, --save-mark [--mask mask]
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--restore-mark":
 					{
 						// --restore-mark [--nfmask nfmask] [--ctmask ctmask] or if --set-xmark enabled, --restore-mark [--mask mask]
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--and-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--or-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--xor-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--set-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1256,13 +1256,13 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--save":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--restore":
 					{
 						//
 					}
-					log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+					log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 				}
 			}
 		case TargetCT:
@@ -1271,32 +1271,32 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--notrack":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--helper":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--ctevents":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--expevents":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--zone":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--timeout":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1306,17 +1306,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--to-destination":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--random":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--persistent":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1326,12 +1326,12 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--src-pfx":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--dst-pfx":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1341,12 +1341,12 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--set-dscp":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--set-dscp-class":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1356,7 +1356,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--ecn-tcp-remove":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1367,17 +1367,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--hl-set":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hl-dec":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hl-inc":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1387,52 +1387,52 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--hmark-tuple":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-mod":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-offset":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-src-prefix":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-dst-prefix":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-sport-mask":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hark-dport-mask":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-spi-mask":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-proto-mask":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--hmark-rnd":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1442,12 +1442,12 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--timeout":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--label":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1457,17 +1457,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--led-trigger-id":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--led-delay":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--led-always-blink":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1477,24 +1477,24 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--log-level":
 					{
 						// --log-level level : level can be numeric or mnemonic
-						retT.log.logLevel = s.operand.sParam
+						retT.Log.LogLevel = s.operand.sParam
 					}
 				case "--log-prefix":
 					{
 						// --log-prefix prefix
-						retT.log.logPrefix = s.operand.sParam
+						retT.Log.LogPrefix = s.operand.sParam
 					}
 				case "--log-tcp-sequence":
 					{
-						retT.log.logTcpSequence = true
+						retT.Log.LogTcpSequence = true
 					}
 				case "--log-tcp-options":
 					{
-						retT.log.logTcpOptions = true
+						retT.Log.LogTcpOptions = true
 					}
 				case "--log-uid":
 					{
-						retT.log.logUID = true
+						retT.Log.LogUID = true
 					}
 				}
 			}
@@ -1504,27 +1504,27 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--set-xmark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--set-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--and-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--or-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--xor-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1534,12 +1534,12 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--to-ports":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--random":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1555,7 +1555,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--to":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1566,22 +1566,22 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--nflog-group":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--nflog-prefix":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--nflog-range":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--nflog-threshold":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1591,22 +1591,22 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--queue-num":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--queue-balance":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--queue-bypass":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--queue-cpu-fanout":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1622,17 +1622,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--rateest-name":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--rateest-interval":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--rateest-ewmalog":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1642,12 +1642,12 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--to-ports":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--random":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1659,9 +1659,9 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 					{
 						//
 						if strings.HasPrefix(s.operand.sParam, "icmp-") {
-							retT.reject4.rejectWith = s.operand.sParam
+							retT.Reject4.RejectWith = s.operand.sParam
 						} else {
-							retT.reject6.rejectWith = s.operand.sParam
+							retT.Reject6.RejectWith = s.operand.sParam
 						}
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
@@ -1674,17 +1674,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--to":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--nodst":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--random":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1694,7 +1694,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--selctx":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1705,22 +1705,22 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--add-set":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--del-set":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--timeout":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--exist":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1730,17 +1730,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--to-source":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--random":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--persistent":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1750,12 +1750,12 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--src-pfx":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--dst-pfx":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1765,12 +1765,12 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--set-mss":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--clam-mss-to-pmtu":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1780,7 +1780,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--strip-options":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1791,7 +1791,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--gateway":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -1802,22 +1802,22 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--set-tos":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--and-tos":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--or-tos":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--xor-tos":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1827,17 +1827,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--on-port":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--on-ip":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "tproxy-mark":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1853,17 +1853,17 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--ttl-set":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--ttl-dec":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--ttl-inc":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1873,22 +1873,22 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 				case "--ulog-nlgroup":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--ulog-prefix":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--ulog-cprange":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				case "--ulog-qthreshold":
 					{
 						//
-						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.target, s.opcode)
+						log.Panicf("CODE ME! - '%s' with option '%s' currently unsupported", retT.Target, s.opcode)
 					}
 				}
 			}
@@ -1903,7 +1903,7 @@ func parseTargetExtensions(ruleElementList []RuleElement) Target {
 	return retT
 }
 
-func parseRuleSpec(row TableRow, isIPv6 bool) (RuleSpec, ParseError) {
+func parseRuleSpec(row tableRow, isIPv6 bool) (RuleSpec, ParseError) {
 	//log.Printf("%d: === Begin parseRuleSpec(%s)\n\tChainCommand: %v\n\tRow element count: %d\n\tElements: %v\n",
 	//	row.lineNum,
 	//	row.strRule,
@@ -1912,9 +1912,9 @@ func parseRuleSpec(row TableRow, isIPv6 bool) (RuleSpec, ParseError) {
 	//	row.ruleElements)
 
 	retRule := RuleSpec{
-		line:   row.lineNum,
-		rule:   row.strRule,
-		result: row.commandArg.text,
+		Line:   row.lineNum,
+		Rule:   row.strRule,
+		Result: row.commandArg.text,
 	}
 	parseErr := ParseError{}
 	for _, ruleElement := range row.ruleElements {
@@ -1925,51 +1925,51 @@ func parseRuleSpec(row TableRow, isIPv6 bool) (RuleSpec, ParseError) {
 		switch ruleElement.opcode {
 		case "-4", "--ipv4":
 			{
-				retRule.family = IPv4
+				retRule.Family = IPv4
 				if isIPv6 {
-					parseErr.line = row.lineNum
-					parseErr.msg = "Parse requested as IPv6, but found '--ipv4' in rules"
+					parseErr.Line = row.lineNum
+					parseErr.Msg = "Parse requested as IPv6, but found '--ipv4' in rules"
 					log.Panic(parseErr)
 				}
 				handled = true
 			}
 		case "-6", "--ipv6":
 			{
-				retRule.family = IPv6
+				retRule.Family = IPv6
 				if isIPv6 == false {
-					parseErr.line = row.lineNum
-					parseErr.msg = "Parse requested as IPv4, but found '--ipv6' in rules"
+					parseErr.Line = row.lineNum
+					parseErr.Msg = "Parse requested as IPv4, but found '--ipv6' in rules"
 					log.Panic(parseErr)
 				}
 				handled = true
 			}
 		case "-p", "--protocol":
 			{
-				retRule.protocol.not = ruleElement.not
-				retRule.protocol.p = Protocol(ruleElement.operand.sParam)
+				retRule.Protocol.Not = ruleElement.not
+				retRule.Protocol.P = Protocol(ruleElement.operand.sParam)
 				handled = true
 			}
 		case "-s", "--source":
 			{
-				retRule.source.not = ruleElement.not
-				retRule.source.s = Source(ruleElement.operand.sParamList)
+				retRule.Source.Not = ruleElement.not
+				retRule.Source.S = Source(ruleElement.operand.sParamList)
 				handled = true
 			}
 		case "-d", "--destination":
 			{
-				retRule.destination.not = ruleElement.not
-				retRule.destination.d = Destination(ruleElement.operand.sParamList)
+				retRule.Destination.Not = ruleElement.not
+				retRule.Destination.D = Destination(ruleElement.operand.sParamList)
 				handled = true
 			}
 		case "-m", "--match":
 			{
 				//log.Printf("%d:\t\tMatch '%s'\n", row.lineNum, ruleElement.operand.sParam)
-				retRule.match, parseErr = parseMatch(ruleElement, row, isIPv6)
-				if parseErr.msg != "" {
+				retRule.Match, parseErr = parseMatch(ruleElement, row, isIPv6)
+				if parseErr.Msg != "" {
 					log.Panicf("%d: Failed to parse match '%s'\n", row.lineNum, ruleElement.operand.sParam)
 					log.Panic(parseErr)
 				}
-				additionalLog = retRule.match.rule
+				additionalLog = retRule.Match.Rule
 				handled = true
 			}
 		case "-j", "--jump":
@@ -1979,24 +1979,24 @@ func parseRuleSpec(row TableRow, isIPv6 bool) (RuleSpec, ParseError) {
 				// Special case: '--jump RETURN', if "RETURN" is at the top of the
 				// chain (built-in chain), it is up to the default policy defined
 				// at headings of each tables
-				retRule.jumpToTarget = parseTargetExtensions(row.ruleElements)
+				retRule.JumpToTarget = parseTargetExtensions(row.ruleElements)
 				handled = true
 			}
 		case "-g", "--goto":
 			{
-				retRule.gotoChain = ChainName(ruleElement.operand.sParam)
+				retRule.GotoChain = ChainName(ruleElement.operand.sParam)
 				handled = true
 			}
 		case "-i", "--in-interface":
 			{
-				retRule.inInterface.not = ruleElement.not
-				retRule.inInterface.name = NetworkInterface(ruleElement.operand.sParam)
+				retRule.InInterface.Not = ruleElement.not
+				retRule.InInterface.Name = NetworkInterface(ruleElement.operand.sParam)
 				handled = true
 			}
 		case "-o", "--out-interface":
 			{
-				retRule.outInterface.not = ruleElement.not
-				retRule.outInterface.name = NetworkInterface(ruleElement.operand.sParam)
+				retRule.OutInterface.Not = ruleElement.not
+				retRule.OutInterface.Name = NetworkInterface(ruleElement.operand.sParam)
 				handled = true
 			}
 		case "-f", "--fragment":
@@ -2008,11 +2008,11 @@ func parseRuleSpec(row TableRow, isIPv6 bool) (RuleSpec, ParseError) {
 			{
 				isNumber, n, _ := parseNumber(ruleElement.operand.sPaired[0])
 				if isNumber {
-					retRule.counters.packets = n
+					retRule.Counters.Packets = n
 				}
 				isNumber, n, _ = parseNumber(ruleElement.operand.sPaired[1])
 				if isNumber {
-					retRule.counters.bytes = n
+					retRule.Counters.Bytes = n
 				}
 				handled = true
 			}
@@ -2020,13 +2020,13 @@ func parseRuleSpec(row TableRow, isIPv6 bool) (RuleSpec, ParseError) {
 
 		if handled {
 			if additionalLog != "" {
-				retRule.result += " " + additionalLog
+				retRule.Result += " " + additionalLog
 			} else {
-				retRule.result += " " + ruleElement.opcode + " " + ruleElement.operand.sParam
+				retRule.Result += " " + ruleElement.opcode + " " + ruleElement.operand.sParam
 			}
 		}
 	}
-	log.Printf("%d: '%s'\n\tParse Error: %v\n", row.lineNum, retRule.result, parseErr)
+	log.Printf("%d: '%s'\n\tParse Error: %v\n", row.lineNum, retRule.Result, parseErr)
 	return retRule, parseErr
 }
 
@@ -2037,10 +2037,10 @@ func printDebugNot(not bool) string {
 	return ""
 }
 
-func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, ParseError) {
+func parseMatch(matchModule ruleElement, row tableRow, isIPv6 bool) (Match, ParseError) {
 	retMatch := Match{
-		rule:   matchModule.opcode + " " + matchModule.operand.sParam, // keep appending to this string as we find options
-		module: matchModule.operand.sParam,                            // i.e. "-m udp", '--match comment --comment "this is a comment"'
+		Rule:   matchModule.opcode + " " + matchModule.operand.sParam, // keep appending to this string as we find options
+		Module: matchModule.operand.sParam,                            // i.e. "-m udp", '--match comment --comment "this is a comment"'
 	}
 	parseErr := ParseError{}
 	//log.Printf("%d:\t\t\tSearching match options for: '%s'\n", row.lineNum, retMatch.rule)
@@ -2063,30 +2063,30 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--src-type":
 					{
-						retMatch.match.addrtype.notSrc = ruleElement.not
-						retMatch.match.addrtype.srcType = AddressType(ruleElement.operand.sParam)
+						retMatch.Match.Addrtype.NotSrc = ruleElement.not
+						retMatch.Match.Addrtype.SrcType = AddressType(ruleElement.operand.sParam)
 
 						hasOption = true
 						handled = true
 					}
 				case "--dst-type":
 					{
-						retMatch.match.addrtype.notDst = ruleElement.not
-						retMatch.match.addrtype.dstType = AddressType(ruleElement.operand.sParam)
+						retMatch.Match.Addrtype.NotDst = ruleElement.not
+						retMatch.Match.Addrtype.DstType = AddressType(ruleElement.operand.sParam)
 
 						hasOption = true
 						handled = true
 					}
 				case "--limit-iface-in":
 					{
-						retMatch.match.addrtype.limitIfaceIn = true
+						retMatch.Match.Addrtype.LimitIfaceIn = true
 
 						hasOption = true
 						handled = true
 					}
 				case "--limit-iface-out":
 					{
-						retMatch.match.addrtype.limitIfaceOut = true
+						retMatch.Match.Addrtype.LimitIfaceOut = true
 
 						hasOption = true
 						handled = true
@@ -2099,11 +2099,11 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				case "--ahspi":
 					{
 						if isIPv6 {
-							retMatch.match.ahIPv6.notSPI = ruleElement.not
-							retMatch.match.ahIPv6.spi = strings.Split(ruleElement.operand.sParam, ":")
+							retMatch.Match.AhIPv6.NotSPI = ruleElement.not
+							retMatch.Match.AhIPv6.Spi = strings.Split(ruleElement.operand.sParam, ":")
 						} else {
-							retMatch.match.ah.not = ruleElement.not
-							retMatch.match.ah.spi = strings.Split(ruleElement.operand.sParam, ":")
+							retMatch.Match.Ah.Not = ruleElement.not
+							retMatch.Match.Ah.Spi = strings.Split(ruleElement.operand.sParam, ":")
 						}
 
 						hasOption = true
@@ -2111,13 +2111,13 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--ahlen":
 					{
-						retMatch.match.ahIPv6.notLength = ruleElement.not
+						retMatch.Match.AhIPv6.NotLength = ruleElement.not
 						isNumber, n, _ := parseNumber(ruleElement.operand.sParam)
 						if isNumber {
-							retMatch.match.ahIPv6.length = n
+							retMatch.Match.AhIPv6.Length = n
 						} else {
-							parseErr.line = row.lineNum
-							parseErr.msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
+							parseErr.Line = row.lineNum
+							parseErr.Msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
 							log.Panic(parseErr)
 						}
 
@@ -2125,7 +2125,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						handled = true
 					}
 				case "--ahres":
-					retMatch.match.ahIPv6.res = true
+					retMatch.Match.AhIPv6.Res = true
 
 					hasOption = true
 					handled = true
@@ -2136,7 +2136,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--bytecode":
 					{
-						retMatch.match.bpf.byteCode = ruleElement.operand.sParam
+						retMatch.Match.Bpf.ByteCode = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
@@ -2152,10 +2152,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					{
 						isNumber, n, _ := parseNumber(ruleElement.operand.sParam)
 						if isNumber {
-							retMatch.match.cluster.totalNodes = n
+							retMatch.Match.Cluster.TotalNodes = n
 						} else {
-							parseErr.line = row.lineNum
-							parseErr.msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
+							parseErr.Line = row.lineNum
+							parseErr.Msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
 							log.Panic(parseErr)
 						}
 
@@ -2164,13 +2164,13 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--cluster-local-nodemask":
 					{
-						retMatch.match.cluster.notLocalNodeMask = ruleElement.not
+						retMatch.Match.Cluster.NotLocalNodeMask = ruleElement.not
 						isNumber, n, _ := parseNumber(ruleElement.operand.sParam)
 						if isNumber {
-							retMatch.match.cluster.localNodeMask = n
+							retMatch.Match.Cluster.LocalNodeMask = n
 						} else {
-							parseErr.line = row.lineNum
-							parseErr.msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
+							parseErr.Line = row.lineNum
+							parseErr.Msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
 							log.Panic(parseErr)
 						}
 
@@ -2181,10 +2181,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					{
 						isNumber, n, _ := parseNumber(ruleElement.operand.sParam)
 						if isNumber {
-							retMatch.match.cluster.hashSeed = n
+							retMatch.Match.Cluster.HashSeed = n
 						} else {
-							parseErr.line = row.lineNum
-							parseErr.msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
+							parseErr.Line = row.lineNum
+							parseErr.Msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
 							log.Panic(parseErr)
 						}
 
@@ -2198,8 +2198,8 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--comment":
 					{
-						retMatch.match.comment.comment = ruleElement.operand.sParam
-						//log.Printf("%d:\t\t\t\t>>> Parsed quoted text '%s'", row.lineNum, retMatch.match.comment.comment)
+						retMatch.Match.Comment.Comment = ruleElement.operand.sParam
+						//log.Printf("%d:\t\t\t\t>>> Parsed quoted text '%s'", row.lineNum, retMatch.Match.comment.comment)
 
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 
@@ -2217,7 +2217,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--connbytes-dir":
 					{
@@ -2225,7 +2225,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--connbytes-mode":
 					{
@@ -2233,7 +2233,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2246,7 +2246,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--set":
 					{
@@ -2254,7 +2254,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2267,7 +2267,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--connlimit-above":
 					{
@@ -2275,7 +2275,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--connlimit-mask":
 					{
@@ -2283,7 +2283,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--connlimit-saddr":
 					{
@@ -2291,7 +2291,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--connlimit-daddr":
 					{
@@ -2299,7 +2299,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2314,7 +2314,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2323,10 +2323,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--ctstate":
 					{
-						retMatch.match.conntrack.notStateList = ruleElement.not
-						retMatch.match.conntrack.stateList = make([]ConnTrackState, len(ruleElement.operand.sParamList))
+						retMatch.Match.Conntrack.NotStateList = ruleElement.not
+						retMatch.Match.Conntrack.StateList = make([]ConnTrackState, len(ruleElement.operand.sParamList))
 						for i, s := range ruleElement.operand.sParamList {
-							retMatch.match.conntrack.stateList[i] = ConnTrackState(s)
+							retMatch.Match.Conntrack.StateList[i] = ConnTrackState(s)
 						}
 
 						hasOption = true
@@ -2334,50 +2334,50 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--ctproto":
 					{
-						retMatch.match.conntrack.notProto = ruleElement.not
-						retMatch.match.conntrack.l4Proto = ruleElement.operand.sParam
+						retMatch.Match.Conntrack.NotProto = ruleElement.not
+						retMatch.Match.Conntrack.L4Proto = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
 					}
 				case "--ctorigsrc":
 					{
-						retMatch.match.conntrack.notOriginalSrc = ruleElement.not
-						retMatch.match.conntrack.originalSrc = ruleElement.operand.sParam
+						retMatch.Match.Conntrack.NotOriginalSrc = ruleElement.not
+						retMatch.Match.Conntrack.OriginalSrc = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
 					}
 				case "--ctorigdst":
 					{
-						retMatch.match.conntrack.notOriginalDst = ruleElement.not
-						retMatch.match.conntrack.originalDst = ruleElement.operand.sParam
+						retMatch.Match.Conntrack.NotOriginalDst = ruleElement.not
+						retMatch.Match.Conntrack.OriginalDst = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
 					}
 				case "--ctreplsrc":
 					{
-						retMatch.match.conntrack.notReplySrc = ruleElement.not
-						retMatch.match.conntrack.replySrc = ruleElement.operand.sParam
+						retMatch.Match.Conntrack.NotReplySrc = ruleElement.not
+						retMatch.Match.Conntrack.ReplySrc = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
 					}
 				case "--ctrepldst":
 					{
-						retMatch.match.conntrack.notReplyDst = ruleElement.not
-						retMatch.match.conntrack.replyDst = ruleElement.operand.sParam
+						retMatch.Match.Conntrack.NotReplyDst = ruleElement.not
+						retMatch.Match.Conntrack.ReplyDst = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
 					}
 				case "--ctorigsrcport":
 					{
-						retMatch.match.conntrack.notOriginalSrcPort = ruleElement.not
+						retMatch.Match.Conntrack.NotOriginalSrcPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						for j, s := range minmax {
-							retMatch.match.conntrack.originalSrcPort[j] = lookupServicePort(s)
+							retMatch.Match.Conntrack.OriginalSrcPort[j] = lookupServicePort(s)
 						}
 
 						hasOption = true
@@ -2385,10 +2385,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--ctorigdstport":
 					{
-						retMatch.match.conntrack.notOriginalDstPort = ruleElement.not
+						retMatch.Match.Conntrack.NotOriginalDstPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						for j, s := range minmax {
-							retMatch.match.conntrack.originalDstPort[j] = lookupServicePort(s)
+							retMatch.Match.Conntrack.OriginalDstPort[j] = lookupServicePort(s)
 						}
 
 						hasOption = true
@@ -2396,10 +2396,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--ctreplsrcport":
 					{
-						retMatch.match.conntrack.notReplySrcPort = ruleElement.not
+						retMatch.Match.Conntrack.NotReplySrcPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						for j, s := range minmax {
-							retMatch.match.conntrack.replySrcPort[j] = lookupServicePort(s)
+							retMatch.Match.Conntrack.ReplySrcPort[j] = lookupServicePort(s)
 						}
 
 						hasOption = true
@@ -2407,10 +2407,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--ctrepldstport":
 					{
-						retMatch.match.conntrack.notReplyDstPort = ruleElement.not
+						retMatch.Match.Conntrack.NotReplyDstPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						for j, s := range minmax {
-							retMatch.match.conntrack.replyDstPort[j] = lookupServicePort(s)
+							retMatch.Match.Conntrack.ReplyDstPort[j] = lookupServicePort(s)
 						}
 
 						hasOption = true
@@ -2418,10 +2418,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--ctstatus":
 					{
-						retMatch.match.conntrack.notStatusList = ruleElement.not
-						retMatch.match.conntrack.statusList = make([]ConnTrackStatus, len(ruleElement.operand.sParamList))
+						retMatch.Match.Conntrack.NotStatusList = ruleElement.not
+						retMatch.Match.Conntrack.StatusList = make([]ConnTrackStatus, len(ruleElement.operand.sParamList))
 						for i, s := range ruleElement.operand.sParamList {
-							retMatch.match.conntrack.statusList[i] = ConnTrackStatus(s)
+							retMatch.Match.Conntrack.StatusList[i] = ConnTrackStatus(s)
 						}
 
 						hasOption = true
@@ -2429,12 +2429,12 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--ctexpire":
 					{
-						retMatch.match.conntrack.notExpire = ruleElement.not
+						retMatch.Match.Conntrack.NotExpire = ruleElement.not
 						// expiration time is in remaining lifetime of SECONDS (int) and can be in range (i.e. 45:90)
 						for j, s := range ruleElement.operand.sPaired {
 							isNumber, n, _ := parseNumber(s)
 							if isNumber {
-								retMatch.match.conntrack.expire[j] = n
+								retMatch.Match.Conntrack.Expire[j] = n
 							}
 						}
 
@@ -2445,11 +2445,11 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					{
 						switch ConnTrackDir(ruleElement.operand.sParam) {
 						case CTDirOriginal:
-							retMatch.match.conntrack.dir = CTDirOriginal
+							retMatch.Match.Conntrack.Dir = CTDirOriginal
 						case CTDirReply:
-							retMatch.match.conntrack.dir = CTDirReply
+							retMatch.Match.Conntrack.Dir = CTDirReply
 						default:
-							retMatch.match.conntrack.dir = ConnTrackDir(ruleElement.operand.sParam)
+							retMatch.Match.Conntrack.Dir = ConnTrackDir(ruleElement.operand.sParam)
 						}
 
 						hasOption = true
@@ -2468,7 +2468,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2481,7 +2481,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--destination-port", "--dport":
 					{
@@ -2489,7 +2489,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--dccp-types":
 					{
@@ -2497,7 +2497,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--dccp-option":
 					{
@@ -2505,7 +2505,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2518,7 +2518,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--dst-group":
 					{
@@ -2526,7 +2526,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2539,7 +2539,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--dscp-class":
 					{
@@ -2547,7 +2547,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2560,7 +2560,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--dst-opts":
 					{
@@ -2568,7 +2568,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2581,7 +2581,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--ecn-tcp-ece":
 					{
@@ -2589,7 +2589,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--ecn-ip-ect":
 					{
@@ -2597,7 +2597,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2612,7 +2612,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2624,7 +2624,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				hasOption = false // currently, this module has no options
 				handled = true
 
-				log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+				log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 				break
 			}
 		case "frag":
@@ -2636,7 +2636,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--fraglen":
 					{
@@ -2644,7 +2644,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--fragres":
 					{
@@ -2652,7 +2652,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--fragfirst":
 					{
@@ -2660,7 +2660,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--fragmore":
 					{
@@ -2668,7 +2668,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--fraglast":
 					{
@@ -2676,7 +2676,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2689,7 +2689,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-above":
 					{
@@ -2697,7 +2697,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-burst":
 					{
@@ -2705,7 +2705,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-mode":
 					{
@@ -2713,7 +2713,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-srcmask":
 					{
@@ -2721,7 +2721,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-dstmask":
 					{
@@ -2729,7 +2729,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-name":
 					{
@@ -2737,7 +2737,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-htable-size":
 					{
@@ -2745,7 +2745,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-htable-max":
 					{
@@ -2753,7 +2753,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-htable-expire":
 					{
@@ -2761,7 +2761,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hashlimit-htable-gcinterval":
 					{
@@ -2769,7 +2769,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2782,7 +2782,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hbh-opts":
 					{
@@ -2790,7 +2790,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2803,7 +2803,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -2814,13 +2814,13 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--hl-eq":
 					{
-						retMatch.match.hlIPv6.neq = ruleElement.not
+						retMatch.Match.HlIPv6.Neq = ruleElement.not
 						isNumber, n, _ := parseNumber(ruleElement.operand.sParam)
 						if isNumber {
-							retMatch.match.hlIPv6.eq = n
+							retMatch.Match.HlIPv6.Eq = n
 						} else {
-							parseErr.line = row.lineNum
-							parseErr.msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
+							parseErr.Line = row.lineNum
+							parseErr.Msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
 							log.Panic(parseErr)
 						}
 
@@ -2832,14 +2832,14 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hl-gt":
 					{
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2848,8 +2848,8 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--icmp-type":
 					{
-						retMatch.match.icmp.not = ruleElement.not
-						retMatch.match.icmp.icmpType = ruleElement.operand.sParam
+						retMatch.Match.Icmp.Not = ruleElement.not
+						retMatch.Match.Icmp.IcmpType = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
@@ -2863,8 +2863,8 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--icmpv6-type":
 					{
-						retMatch.match.icmp6.not = ruleElement.not
-						retMatch.match.icmp6.icmpv6Type = ruleElement.operand.sParam
+						retMatch.Match.Icmp6.Not = ruleElement.not
+						retMatch.Match.Icmp6.Icmpv6Type = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
@@ -2882,7 +2882,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--dst-range":
 					{
@@ -2890,7 +2890,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2903,7 +2903,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--header":
 					{
@@ -2911,7 +2911,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2924,7 +2924,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--vproto":
 					{
@@ -2932,7 +2932,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--vaddr":
 					{
@@ -2940,7 +2940,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--vport":
 					{
@@ -2948,7 +2948,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--vdir":
 					{
@@ -2956,7 +2956,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--vmethod":
 					{
@@ -2964,7 +2964,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--vportctl":
 					{
@@ -2972,7 +2972,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -2985,7 +2985,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -2995,7 +2995,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--limit":
 					{
-						retMatch.match.limit.rate = ruleElement.operand.sParam
+						retMatch.Match.Limit.Rate = ruleElement.operand.sParam
 
 						hasOption = true
 						handled = true
@@ -3004,10 +3004,10 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					{
 						isNumber, n, _ := parseNumber(ruleElement.operand.sParam)
 						if isNumber {
-							retMatch.match.limit.burst = n
+							retMatch.Match.Limit.Burst = n
 						} else {
-							parseErr.line = row.lineNum
-							parseErr.msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
+							parseErr.Line = row.lineNum
+							parseErr.Msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
 							log.Panic(parseErr)
 						}
 
@@ -3027,7 +3027,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3042,7 +3042,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3055,7 +3055,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -3065,24 +3065,24 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--source-ports", "--sports":
 					{
-						retMatch.match.multiport.notSPorts = ruleElement.not
-						retMatch.match.multiport.sports = strings.Split(ruleElement.operand.sParam, ",")
+						retMatch.Match.Multiport.NotSPorts = ruleElement.not
+						retMatch.Match.Multiport.Sports = strings.Split(ruleElement.operand.sParam, ",")
 
 						hasOption = true
 						handled = true
 					}
 				case "--destination-ports", "--dports":
 					{
-						retMatch.match.multiport.notDPorts = ruleElement.not
-						retMatch.match.multiport.dports = strings.Split(ruleElement.operand.sParam, ",")
+						retMatch.Match.Multiport.NotDPorts = ruleElement.not
+						retMatch.Match.Multiport.Dports = strings.Split(ruleElement.operand.sParam, ",")
 
 						hasOption = true
 						handled = true
 					}
 				case "--ports":
 					{
-						retMatch.match.multiport.notPorts = ruleElement.not
-						retMatch.match.multiport.ports = strings.Split(ruleElement.operand.sParam, ",")
+						retMatch.Match.Multiport.NotPorts = ruleElement.not
+						retMatch.Match.Multiport.Ports = strings.Split(ruleElement.operand.sParam, ",")
 
 						hasOption = true
 						handled = true
@@ -3098,7 +3098,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -3112,7 +3112,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--ttl":
 					{
@@ -3120,7 +3120,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--log":
 					{
@@ -3128,7 +3128,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3141,7 +3141,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--gid-owner":
 					{
@@ -3149,7 +3149,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--socket-exist":
 					{
@@ -3157,7 +3157,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3170,7 +3170,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--physdev-out":
 					{
@@ -3178,7 +3178,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--physdev-is-in":
 					{
@@ -3186,7 +3186,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--physdev-is-out":
 					{
@@ -3194,7 +3194,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--physdev-is-bridged":
 					{
@@ -3202,7 +3202,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3215,7 +3215,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -3229,7 +3229,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--pol":
 					{
@@ -3237,7 +3237,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--strict":
 					{
@@ -3245,7 +3245,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--reqid":
 					{
@@ -3253,7 +3253,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--spi":
 					{
@@ -3261,7 +3261,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--proto":
 					{
@@ -3269,7 +3269,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--mode":
 					{
@@ -3277,7 +3277,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--tunnel-src":
 					{
@@ -3285,7 +3285,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--tunnel-dst":
 					{
@@ -3293,7 +3293,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--next":
 					{
@@ -3301,7 +3301,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3314,7 +3314,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -3328,7 +3328,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-lt":
 					{
@@ -3336,7 +3336,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-gt":
 					{
@@ -3344,7 +3344,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-eq":
 					{
@@ -3352,7 +3352,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest":
 					{
@@ -3360,7 +3360,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest1":
 					{
@@ -3368,7 +3368,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest2":
 					{
@@ -3376,7 +3376,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-bps":
 					{
@@ -3384,7 +3384,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-pps":
 					{
@@ -3392,7 +3392,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-bps1":
 					{
@@ -3400,7 +3400,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-bps2":
 					{
@@ -3408,7 +3408,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-pps1":
 					{
@@ -3416,7 +3416,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rateest-pps2":
 					{
@@ -3424,7 +3424,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3437,7 +3437,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -3451,7 +3451,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--set":
 					{
@@ -3459,7 +3459,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rsource":
 					{
@@ -3467,7 +3467,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rdest":
 					{
@@ -3475,7 +3475,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--mask":
 					{
@@ -3483,7 +3483,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rcheck":
 					{
@@ -3491,7 +3491,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--update":
 					{
@@ -3499,7 +3499,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--remove":
 					{
@@ -3507,7 +3507,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--seconds":
 					{
@@ -3515,7 +3515,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--reap":
 					{
@@ -3523,7 +3523,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hitcount":
 					{
@@ -3531,7 +3531,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rttl":
 					{
@@ -3539,7 +3539,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3552,7 +3552,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--validmark":
 					{
@@ -3560,7 +3560,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--accept-local":
 					{
@@ -3568,7 +3568,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--invert":
 					{
@@ -3576,7 +3576,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3589,7 +3589,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rt-segsleft":
 					{
@@ -3597,7 +3597,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rt-len":
 					{
@@ -3605,7 +3605,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rt-0-res":
 					{
@@ -3613,7 +3613,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rt-0-addrs":
 					{
@@ -3621,7 +3621,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--rt-0-not-strict":
 					{
@@ -3629,7 +3629,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3642,7 +3642,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--destination-port", "--dport":
 					{
@@ -3650,7 +3650,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--chunk-types":
 					{
@@ -3658,7 +3658,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3671,7 +3671,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--return-nomatch":
 					{
@@ -3679,7 +3679,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--update-counters":
 					{
@@ -3687,7 +3687,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--update-subcounters":
 					{
@@ -3695,7 +3695,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--packets-eq":
 					{
@@ -3703,7 +3703,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--packets-lt":
 					{
@@ -3711,7 +3711,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--packets-gt":
 					{
@@ -3719,7 +3719,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "-bytes-eq", "--bytes-eq": // NOTE: for both Debian and Gentoo, man iptables-extensions shows this with single '-' and not '--'
 					{
@@ -3727,7 +3727,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--bytes-lt":
 					{
@@ -3735,7 +3735,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--bytes-gt":
 					{
@@ -3743,7 +3743,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3756,7 +3756,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--nowildcard":
 					{
@@ -3764,7 +3764,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3773,12 +3773,12 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--state":
 					{
-						retMatch.match.state.notState = ruleElement.not
-						retMatch.match.state.stateList = make([]StateState, len(ruleElement.operand.sParamList))
+						retMatch.Match.State.NotState = ruleElement.not
+						retMatch.Match.State.StateList = make([]StateState, len(ruleElement.operand.sParamList))
 						//log.Printf("%d:\t\t\t--state -> '%s' : List %v", row.lineNum, ruleElement.operand.sParam, ruleElement.operand.sParamList)
 						for i, s := range ruleElement.operand.sParamList {
-							retMatch.match.state.stateList[i] = StateState(s)
-							//log.Printf("%d:\t\t\t\t%d: %s", row.lineNum, i, retMatch.match.state.stateList[i])
+							retMatch.Match.State.StateList[i] = StateState(s)
+							//log.Printf("%d:\t\t\t\t%d: %s", row.lineNum, i, retMatch.Match.state.stateList[i])
 						}
 
 						hasOption = true
@@ -3797,7 +3797,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--probability":
 					{
@@ -3805,7 +3805,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--every":
 					{
@@ -3813,7 +3813,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--packet":
 					{
@@ -3821,7 +3821,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3834,7 +3834,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--from":
 					{
@@ -3842,7 +3842,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--to":
 					{
@@ -3850,7 +3850,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--string":
 					{
@@ -3858,7 +3858,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--hex-string":
 					{
@@ -3866,7 +3866,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -3875,12 +3875,12 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--source-port", "--sport":
 					{
-						retMatch.match.tcp.notSPort = ruleElement.not
+						retMatch.Match.Tcp.NotSPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						log.Printf("\t\t\t\t\t--sport %s\n", minmax)
 						for j, s := range minmax {
 							// Note: it could be because the port is defined as service value (i.e. port 22 = 'ssh')
-							retMatch.match.tcp.sport[j] = lookupServicePort(s)
+							retMatch.Match.Tcp.Sport[j] = lookupServicePort(s)
 						}
 
 						hasOption = true
@@ -3888,11 +3888,11 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--destination-port", "--dport":
 					{
-						retMatch.match.tcp.notDPort = ruleElement.not
+						retMatch.Match.Tcp.NotDPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						for j, s := range minmax {
 							// Note: it could be because the port is defined as service value (i.e. port 22 = 'ssh')
-							retMatch.match.tcp.dport[j] = lookupServicePort(s)
+							retMatch.Match.Tcp.Dport[j] = lookupServicePort(s)
 						}
 
 						hasOption = true
@@ -3900,30 +3900,30 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--tcp-flags":
 					{
-						retMatch.match.tcp.notFlags = ruleElement.not
-						retMatch.match.tcp.flagsMask = strings.Split(ruleElement.operand.sParam, ",")
-						retMatch.match.tcp.flagsComp = strings.Split(ruleElement.operand.sParam, ",")
+						retMatch.Match.Tcp.NotFlags = ruleElement.not
+						retMatch.Match.Tcp.FlagsMask = strings.Split(ruleElement.operand.sParam, ",")
+						retMatch.Match.Tcp.FlagsComp = strings.Split(ruleElement.operand.sParam, ",")
 
 						hasOption = true
 						handled = true
 					}
 				case "--syn":
 					{
-						retMatch.match.tcp.notSyn = ruleElement.not
-						retMatch.match.tcp.syn = true
+						retMatch.Match.Tcp.NotSyn = ruleElement.not
+						retMatch.Match.Tcp.Syn = true
 
 						hasOption = true
 						handled = true
 					}
 				case "--tcp-option":
 					{
-						retMatch.match.tcp.notOption = ruleElement.not
+						retMatch.Match.Tcp.NotOption = ruleElement.not
 						isNumber, n, _ := parseNumber(ruleElement.operand.sParam)
 						if isNumber {
-							retMatch.match.tcp.option = n
+							retMatch.Match.Tcp.Option = n
 						} else {
-							parseErr.line = row.lineNum
-							parseErr.msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
+							parseErr.Line = row.lineNum
+							parseErr.Msg = "Could not convert '" + ruleElement.operand.sParam + "' to integer"
 							log.Panic(parseErr)
 						}
 
@@ -3941,7 +3941,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -3955,7 +3955,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--datestop":
 					{
@@ -3963,7 +3963,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--timestart":
 					{
@@ -3971,7 +3971,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--timestop":
 					{
@@ -3979,7 +3979,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--monthdays":
 					{
@@ -3987,7 +3987,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--weekdays":
 					{
@@ -3995,7 +3995,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--contiguous":
 					{
@@ -4003,7 +4003,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--kerneltz":
 					{
@@ -4011,7 +4011,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -4024,7 +4024,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -4038,7 +4038,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--ttl-gt":
 					{
@@ -4046,7 +4046,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				case "--ttl-lt":
 					{
@@ -4054,7 +4054,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 					}
 				}
 			}
@@ -4067,7 +4067,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 						hasOption = true
 						handled = true
 
-						log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+						log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 						done = true // assume you can only encounter only once, opt out of the for{} loop now
 					}
 				}
@@ -4077,12 +4077,12 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				switch ruleElement.opcode {
 				case "--source-port", "--sport":
 					{
-						retMatch.match.udp.notSPort = ruleElement.not
+						retMatch.Match.Udp.NotSPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						//log.Printf("\t\t\t\t\tudp --sport range %s\n", minmax)
 						for j, s := range minmax {
-							retMatch.match.udp.sport[j] = lookupServicePort(s)
-							//log.Printf("\t\t\t\t\t\tudp --sport %s[%d] -> %d\n", s, j, retMatch.match.udp.sport[j])
+							retMatch.Match.Udp.Sport[j] = lookupServicePort(s)
+							//log.Printf("\t\t\t\t\t\tudp --sport %s[%d] -> %d\n", s, j, retMatch.Match.udp.sport[j])
 						}
 
 						hasOption = true
@@ -4090,12 +4090,12 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 					}
 				case "--destination-port", "--dport":
 					{
-						retMatch.match.udp.notDPort = ruleElement.not
+						retMatch.Match.Udp.NotDPort = ruleElement.not
 						minmax := strings.Split(ruleElement.operand.sParam, ":")
 						//log.Printf("\t\t\t\t\tudp --dport range %s\n", minmax)
 						for j, s := range minmax {
-							retMatch.match.udp.dport[j] = lookupServicePort(s)
-							//log.Printf("\t\t\t\t\t\tudp --dport %s[%d] -> %d\n", s, j, retMatch.match.udp.dport[j])
+							retMatch.Match.Udp.Dport[j] = lookupServicePort(s)
+							//log.Printf("\t\t\t\t\t\tudp --dport %s[%d] -> %d\n", s, j, retMatch.Match.udp.dport[j])
 						}
 
 						hasOption = true
@@ -4110,7 +4110,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 				handled = true
 				hasOption = false // currently, this module has no options
 
-				log.Panic("CODE ME! - " + retMatch.module + " - " + ruleElement.opcode)
+				log.Panic("CODE ME! - " + retMatch.Module + " - " + ruleElement.opcode)
 			}
 		} // switch
 
@@ -4118,7 +4118,7 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 		if handled == false {
 			//log.Printf("%d:\t\t\t\t\t\tMatch '%s' Unhandled option: '%s' with param '%s'\n", row.lineNum, matchModule.operand.sParam, ruleElement.opcode, ruleElement.operand.sParam)
 		} else if hasOption {
-			retMatch.rule += " " + printDebugNot(ruleElement.not) + ruleElement.opcode + " " + ruleElement.operand.sParam
+			retMatch.Rule += " " + printDebugNot(ruleElement.not) + ruleElement.opcode + " " + ruleElement.operand.sParam
 		} else if hasOption {
 			log.Printf("%d:\t\t\t\t\t\tMatch '%s' does not expect any options, done=%v\n", row.lineNum, matchModule.operand.sParam, done)
 		}
@@ -4129,8 +4129,8 @@ func parseMatch(matchModule RuleElement, row TableRow, isIPv6 bool) (Match, Pars
 
 func appendUserDefined(udcList []UserDefinedChain, name TargetName, rule RuleSpec) []UserDefinedChain {
 	for iUDC, udc := range udcList {
-		if udc.name == name {
-			udcList[iUDC].rules = append(udcList[iUDC].rules, rule)
+		if udc.Name == name {
+			udcList[iUDC].Rules = append(udcList[iUDC].Rules, rule)
 			//log.Printf("\t[%d] Existing chain %s, appending rule - rules count = %d\n", iUDC, udcList[iUDC].name, len(udcList[iUDC].rules))
 			return udcList
 		}
@@ -4139,8 +4139,8 @@ func appendUserDefined(udcList []UserDefinedChain, name TargetName, rule RuleSpe
 	var newRule []RuleSpec
 	newRule = append(newRule, rule)
 	newUDC := UserDefinedChain{
-		name:  name,
-		rules: newRule,
+		Name:  name,
+		Rules: newRule,
 	}
 	udcList = append(udcList, newUDC)
 	//log.Printf("\tAdding new chain %s\n", name)
@@ -4151,7 +4151,7 @@ func parseFilter(lines map[int]string, isIPv6 bool) (TableFilter, ParseError) {
 	var table TableFilter
 	var err ParseError
 	chains := findDefaultPolicies(lines)
-	table.defaultPolicies = chains
+	table.DefaultPolicies = chains
 	textTable := buildTable("filter", lines, isIPv6)
 
 	if len(textTable.rows) > 0 {
@@ -4162,41 +4162,41 @@ func parseFilter(lines map[int]string, isIPv6 bool) (TableFilter, ParseError) {
 			case CommandInsert:
 				{
 					// insert chain [pos] rule - if pos is not there, it's same as append
-					err.line = row.lineNum
-					err.msg = "-I (insert) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-I (insert) not currently supported"
 					log.Panic(err)
 				}
 			case CommandAppend:
 				{
 					// append chain rule
 					rule, err := parseRuleSpec(row, isIPv6)
-					if err.msg == "" {
+					if err.Msg == "" {
 						switch row.commandArg.chain {
 						case ChainINPUT:
-							table.builtInInput = append(table.builtInInput, rule)
+							table.BuiltInInput = append(table.BuiltInInput, rule)
 						case ChainOUTPUT:
-							table.builtInOutput = append(table.builtInOutput, rule)
+							table.BuiltInOutput = append(table.BuiltInOutput, rule)
 						case ChainFORWARD:
-							table.builtInForward = append(table.builtInForward, rule)
+							table.BuiltInForward = append(table.BuiltInForward, rule)
 						default:
 							// add it to UserDefinedChain
 							//log.Printf("\tFound UserDefined Chain %s: %v\n", row.commandArg.chain, rule)
-							table.userdefined = appendUserDefined(table.userdefined, TargetName(row.commandArg.chain), rule)
+							table.Userdefined = appendUserDefined(table.Userdefined, TargetName(row.commandArg.chain), rule)
 						}
 					}
 				}
 			case CommandDelete:
 				{
 					// delete chain rule
-					err.line = row.lineNum
-					err.msg = "-D (delete) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-D (delete) not currently supported"
 					log.Panic(err)
 				}
 			case CommandReplace:
 				{
 					// replace chain pos spec
-					err.line = row.lineNum
-					err.msg = "-R (replace) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-R (replace) not currently supported"
 					log.Panic(err)
 				}
 			}
@@ -4209,7 +4209,7 @@ func parseNat(lines map[int]string, isIPv6 bool) (TableNat, ParseError) {
 	var table TableNat
 	var err ParseError
 	chains := findDefaultPolicies(lines)
-	table.defaultPolicies = chains
+	table.DefaultPolicies = chains
 	textTable := buildTable("nat", lines, isIPv6)
 
 	if len(textTable.rows) > 0 {
@@ -4220,41 +4220,41 @@ func parseNat(lines map[int]string, isIPv6 bool) (TableNat, ParseError) {
 			case CommandInsert:
 				{
 					// insert chain [pos] rule - if pos is not there, it's same as append
-					err.line = row.lineNum
-					err.msg = "-I (insert) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-I (insert) not currently supported"
 					log.Panic(err)
 				}
 			case CommandAppend:
 				{
 					// append chain rule
 					rule, err := parseRuleSpec(row, isIPv6)
-					if err.msg == "" {
+					if err.Msg == "" {
 						switch row.commandArg.chain {
 						case ChainPREROUTING:
-							table.builtInPrerouting = append(table.builtInPrerouting, rule)
+							table.BuiltInPrerouting = append(table.BuiltInPrerouting, rule)
 						case ChainOUTPUT:
-							table.builtInOutput = append(table.builtInOutput, rule)
+							table.BuiltInOutput = append(table.BuiltInOutput, rule)
 						case ChainPOSTROUTING:
-							table.builtInPostrouting = append(table.builtInPostrouting, rule)
+							table.BuiltInPostrouting = append(table.BuiltInPostrouting, rule)
 						default:
 							// add it to UserDefinedChain
 							//log.Printf("\tFound UserDefined Chain %s: %v\n", row.commandArg.chain, rule)
-							table.userdefined = appendUserDefined(table.userdefined, TargetName(row.commandArg.chain), rule)
+							table.Userdefined = appendUserDefined(table.Userdefined, TargetName(row.commandArg.chain), rule)
 						}
 					}
 				}
 			case CommandDelete:
 				{
 					// delete chain rule
-					err.line = row.lineNum
-					err.msg = "-D (delete) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-D (delete) not currently supported"
 					log.Panic(err)
 				}
 			case CommandReplace:
 				{
 					// replace chain pos spec
-					err.line = row.lineNum
-					err.msg = "-R (replace) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-R (replace) not currently supported"
 					log.Panic(err)
 				}
 			}
@@ -4267,7 +4267,7 @@ func parseMangle(lines map[int]string, isIPv6 bool) (TableMangle, ParseError) {
 	var table TableMangle
 	var err ParseError
 	chains := findDefaultPolicies(lines)
-	table.defaultPolicies = chains
+	table.DefaultPolicies = chains
 	textTable := buildTable("mangle", lines, isIPv6)
 
 	if len(textTable.rows) > 0 {
@@ -4278,45 +4278,45 @@ func parseMangle(lines map[int]string, isIPv6 bool) (TableMangle, ParseError) {
 			case CommandInsert:
 				{
 					// insert chain [pos] rule - if pos is not there, it's same as append
-					err.line = row.lineNum
-					err.msg = "-I (insert) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-I (insert) not currently supported"
 					log.Panic(err)
 				}
 			case CommandAppend:
 				{
 					// append chain rule
 					rule, err := parseRuleSpec(row, isIPv6)
-					if err.msg == "" {
+					if err.Msg == "" {
 						switch row.commandArg.chain {
 						case ChainPREROUTING:
-							table.builtInPrerouting = append(table.builtInPrerouting, rule)
+							table.BuiltInPrerouting = append(table.BuiltInPrerouting, rule)
 						case ChainINPUT:
-							table.builtInInput = append(table.builtInInput, rule)
+							table.BuiltInInput = append(table.BuiltInInput, rule)
 						case ChainOUTPUT:
-							table.builtInOutput = append(table.builtInOutput, rule)
+							table.BuiltInOutput = append(table.BuiltInOutput, rule)
 						case ChainFORWARD:
-							table.builtInForward = append(table.builtInForward, rule)
+							table.BuiltInForward = append(table.BuiltInForward, rule)
 						case ChainPOSTROUTING:
-							table.builtInPostrouting = append(table.builtInPostrouting, rule)
+							table.BuiltInPostrouting = append(table.BuiltInPostrouting, rule)
 						default:
 							// add it to UserDefinedChain
 							//log.Printf("\tFound UserDefined Chain %s: %v\n", row.commandArg.chain, rule)
-							table.userdefined = appendUserDefined(table.userdefined, TargetName(row.commandArg.chain), rule)
+							table.Userdefined = appendUserDefined(table.Userdefined, TargetName(row.commandArg.chain), rule)
 						}
 					}
 				}
 			case CommandDelete:
 				{
 					// delete chain rule
-					err.line = row.lineNum
-					err.msg = "-D (delete) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-D (delete) not currently supported"
 					log.Panic(err)
 				}
 			case CommandReplace:
 				{
 					// replace chain pos spec
-					err.line = row.lineNum
-					err.msg = "-R (replace) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-R (replace) not currently supported"
 					log.Panic(err)
 				}
 			}
@@ -4329,7 +4329,7 @@ func parseRaw(lines map[int]string, isIPv6 bool) (TableRaw, ParseError) {
 	var table TableRaw
 	var err ParseError
 	chains := findDefaultPolicies(lines)
-	table.defaultPolicies = chains
+	table.DefaultPolicies = chains
 	textTable := buildTable("raw", lines, isIPv6)
 
 	if len(textTable.rows) > 0 {
@@ -4340,39 +4340,39 @@ func parseRaw(lines map[int]string, isIPv6 bool) (TableRaw, ParseError) {
 			case CommandInsert:
 				{
 					// insert chain [pos] rule - if pos is not there, it's same as append
-					err.line = row.lineNum
-					err.msg = "-I (insert) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-I (insert) not currently supported"
 					log.Panic(err)
 				}
 			case CommandAppend:
 				{
 					// append chain rule
 					rule, err := parseRuleSpec(row, isIPv6)
-					if err.msg == "" {
+					if err.Msg == "" {
 						switch row.commandArg.chain {
 						case ChainPREROUTING:
-							table.builtInPrerouting = append(table.builtInPrerouting, rule)
+							table.BuiltInPrerouting = append(table.BuiltInPrerouting, rule)
 						case ChainOUTPUT:
-							table.builtInOutput = append(table.builtInOutput, rule)
+							table.BuiltInOutput = append(table.BuiltInOutput, rule)
 						default:
 							// add it to UserDefinedChain
 							//log.Printf("\tFound UserDefined Chain %s: %v\n", row.commandArg.chain, rule)
-							table.userdefined = appendUserDefined(table.userdefined, TargetName(row.commandArg.chain), rule)
+							table.Userdefined = appendUserDefined(table.Userdefined, TargetName(row.commandArg.chain), rule)
 						}
 					}
 				}
 			case CommandDelete:
 				{
 					// delete chain rule
-					err.line = row.lineNum
-					err.msg = "-D (delete) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-D (delete) not currently supported"
 					log.Panic(err)
 				}
 			case CommandReplace:
 				{
 					// replace chain pos spec
-					err.line = row.lineNum
-					err.msg = "-R (replace) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-R (replace) not currently supported"
 					log.Panic(err)
 				}
 			}
@@ -4385,7 +4385,7 @@ func parseSecurity(lines map[int]string, isIPv6 bool) (TableSecurity, ParseError
 	var table TableSecurity
 	var err ParseError
 	chains := findDefaultPolicies(lines)
-	table.defaultPolicies = chains
+	table.DefaultPolicies = chains
 	textTable := buildTable("security", lines, isIPv6)
 
 	if len(textTable.rows) > 0 {
@@ -4396,41 +4396,41 @@ func parseSecurity(lines map[int]string, isIPv6 bool) (TableSecurity, ParseError
 			case CommandInsert:
 				{
 					// insert chain [pos] rule - if pos is not there, it's same as append
-					err.line = row.lineNum
-					err.msg = "-I (insert) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-I (insert) not currently supported"
 					log.Panic(err)
 				}
 			case CommandAppend:
 				{
 					// append chain rule
 					rule, err := parseRuleSpec(row, isIPv6)
-					if err.msg == "" {
+					if err.Msg == "" {
 						switch row.commandArg.chain {
 						case ChainINPUT:
-							table.builtInInput = append(table.builtInInput, rule)
+							table.BuiltInInput = append(table.BuiltInInput, rule)
 						case ChainOUTPUT:
-							table.builtInOutput = append(table.builtInOutput, rule)
+							table.BuiltInOutput = append(table.BuiltInOutput, rule)
 						case ChainFORWARD:
-							table.builtInForward = append(table.builtInForward, rule)
+							table.BuiltInForward = append(table.BuiltInForward, rule)
 						default:
 							// add it to UserDefinedChain
 							//log.Printf("\tFound UserDefined Chain %s: %v\n", row.commandArg.chain, rule)
-							table.userdefined = appendUserDefined(table.userdefined, TargetName(row.commandArg.chain), rule)
+							table.Userdefined = appendUserDefined(table.Userdefined, TargetName(row.commandArg.chain), rule)
 						}
 					}
 				}
 			case CommandDelete:
 				{
 					// delete chain rule
-					err.line = row.lineNum
-					err.msg = "-D (delete) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-D (delete) not currently supported"
 					log.Panic(err)
 				}
 			case CommandReplace:
 				{
 					// replace chain pos spec
-					err.line = row.lineNum
-					err.msg = "-R (replace) not currently supported"
+					err.Line = row.lineNum
+					err.Msg = "-R (replace) not currently supported"
 					log.Panic(err)
 				}
 			}
