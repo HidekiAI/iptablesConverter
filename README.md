@@ -1,5 +1,5 @@
 # Introductions
-This project is *not* to emulate and/or substitude for [iptables-translate](https://wiki.nftables.org/wiki-nftables/index.php/Moving_from_iptables_to_nftables).
+This project is *not* to emulate and/or substitute for [iptables-translate](https://wiki.nftables.org/wiki-nftables/index.php/Moving_from_iptables_to_nftables).
 It originally started as a desire to self-teach golang, and I have been in a need to upgrade several of
 my iptables.rule (and ip6tables.rule) files for each server that have specific rules and are getting
 quite large to manage.
