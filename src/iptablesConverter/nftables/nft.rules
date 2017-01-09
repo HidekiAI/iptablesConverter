@@ -1,0 +1,41 @@
+# IPv4 filtering
+table Filter {
+        chain Input {
+                 type filter hook input priority 0;
+                 ct state established accept
+                 ct state related accept
+                 iif lo accept
+                 tcp dport ssh counter accept
+                 counter log drop
+        }
+
+        chain Output {
+                 type filter hook output priority 0;
+                 ct state established accept
+                 ct state related accept
+                 oif lo accept
+                 ct state new counter accept
+        }
+}
+
+#IPv6 filtering
+table ip6 Filter {
+        chain Input {
+                 type filter hook input priority 0;
+                 ct state established accept
+                 ct state related accept
+                 iif lo accept
+                 tcp dport ssh counter accept
+                 icmpv6 type { nd-neighbor-solicit, echo-request, nd-router-advert, nd-neighbor-advert } accept
+                 counter log drop
+        }
+
+        chain Output {
+                 type filter hook output priority 0;
+                 ct state established accept
+                 ct state related accept
+                 oif lo accept
+                 ct state new counter accept
+        }
+
+}

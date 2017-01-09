@@ -29,7 +29,7 @@ func dumpTable(tab Iptables, t *testing.T) {
 }
 
 func TestReadv4(t *testing.T) {
-	path := "iptables.rules"
+	path := "iptables.rules" // TODO: Commit this file to same location as this _test.go file
 	t.Logf("Reading '%s'\n", path)
 	tab, err := Read(path)
 	if err.Msg != "" {
@@ -43,7 +43,7 @@ func TestReadv4(t *testing.T) {
 }
 
 func TestReadv6(t *testing.T) {
-	path := "ip6tables.rules"
+	path := "ip6tables.rules" // TODO: Commit this file to same location as this _test.go file
 	t.Logf("Reading '%s'\n", path)
 	tab, err := Read(path)
 	if err.Msg != "" {

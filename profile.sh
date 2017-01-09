@@ -1,3 +1,4 @@
 #!/bin/bash
-export GOPATH="/home/hidekiai/projects/iptablesConverter/vendor:/home/hidekiai/projects/iptablesConverter"
+_PWD=$(pwd)
+export GOPATH="$_PWD/vendor:$_PWD"
 export GOROOT=/usr/local/go

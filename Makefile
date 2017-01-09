@@ -30,7 +30,7 @@ run: build
 	./bin/iptables2nftables
 
 test:
-	go test iptablesConverter/...
+	go test -v iptablesConverter/...
 
 vendor_clean:
 	rm -dRf ./vendor/src

@@ -2,5 +2,5 @@ package packetfilter
 
 import "testing"
 
-func TestX(t *testing.T) {
+func TestPF(t *testing.T) {
 }

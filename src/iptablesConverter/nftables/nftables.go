@@ -26,12 +26,17 @@ const (
 type THookName string
 
 const (
-	CHookPrerouting  THookName = "prerouting"
-	CHookInput                 = "input"
-	CHookForward               = "forward"
-	CHookOutput                = "output"
-	CHookPostRouting           = "postrouting"
-	CHookIngress               = "ingress"
+	// hook refers to an specific stage of the packet while it's being processed through the kernel. More info in Netfilter hooks.
+	//	* The hooks for ip, ip6 and inet families are: prerouting, input, forward, output, postrouting.
+	//	* The hooks for arp family are: input, output.
+	//	* The bridge family handles ethernet packets traversing bridge devices.
+	//	* The hook for netdev is: ingress.
+	CHookPrerouting  THookName = "prerouting"  // ip, ip6, and inet
+	CHookInput                 = "input"       // ip, ip6, inet, arp
+	CHookForward               = "forward"     // ip, ip6, inet
+	CHookOutput                = "output"      // ip, ip6, inet, arp
+	CHookPostRouting           = "postrouting" // ip, ip6, inet
+	CHookIngress               = "ingress"     // netdev
 )
 
 type TFamilyHook struct {
@@ -43,6 +48,7 @@ type TFamilyHook struct {
 // The address family must be one of ip, ip6, inet, arp, bridge, netdev.  The inet address family is a
 // dummy family which is used to create hybrid IPv4/IPv6 tables.  When no address family is specified,
 // ip is used by default.
+type TTableName string
 type TTableCommand string
 
 const (
@@ -53,6 +59,7 @@ const (
 )
 
 type TTable struct {
+	Name   TTableName // i.e. 'nft add table filter', Name=="filter"
 	Family TAddressFamily
 	Chains []TChain
 }
@@ -60,7 +67,9 @@ type TTable struct {
 //Chains are containers for rules. They exist in two kinds, base chains and regular chains.
 // A base chain is an entry point for packets from the networking stack, a regular chain
 // may be used as jump target and is used for better rule organization.
+type TChainName string
 type TChainCommand string
+type TChainType string
 
 const (
 	CChainCommandAdd    TChainCommand = "add"
@@ -69,21 +78,49 @@ const (
 	CChainCommandRename               = "rename"
 	CChainCommandList                 = "list"
 	CChainCommandFlush                = "flush"
+
+	// type refers to the kind of chain to be created. Possible types are:
+	//	filter: Supported by arp, bridge, ip, ip6 and inet table families.
+	//	route: Mark packets (like mangle for the output hook, for other hooks use the type filter instead), supported by ip and ip6.
+	//	nat: In order to perform Network Address Translation, supported by ip and ip6.
+	CChainTypeFilter TChainType = "filter"
+	CChainTypeRoute             = "route"
+	CChainTypeNat               = "nat"
 )
 
 type TChain struct {
+	Name TChainName
 	Rule TRule
 }
 
 // Rules are constructed from two kinds of components according to a set of grammatical
 // rules: expressions and statements.
+/*
+* handle is an internal number that identifies a certain rule.
+* position is an internal number that it's used to insert a rule before a certain handle.
+		% nft add rule [<family>] <table> <chain> <matches> <statements>
+		% nft insert rule [<family>] <table> <chain> [position <position>] <matches> <statements>
+		% nft replace rule [<family>] <table> <chain> [handle <handle>] <matches> <statements>
+		% nft delete rule [<family>] <table> <chain> [handle <handle>]
+*/
 type TRuleCommand string
 
 const (
-	CRuleCommandAdd    TRuleCommand = "add"
-	CRuleCommandInsert              = "insert"
-	CRuleCommandDelete              = "delete"
+	CRuleCommandAdd     TRuleCommand = "add"
+	CRuleCommandInsert               = "insert"
+	CRuleCommandDelete               = "delete"
+	CRuleCommandReplace              = "replace"
 )
+
+// Statement is the action performed when the packet match the rule. It could be terminal and non-terminal. In a certain rule we can consider several non-terminal statements but only a single terminal statement.
+// The verdict statement alters control flow in the ruleset and issues policy decisions for packets. The valid verdict statements are:
+//	* accept: Accept the packet and stop the remain rules evaluation.
+//	* drop: Drop the packet and stop the remain rules evaluation.
+//	* queue: Queue the packet to userspace and stop the remain rules evaluation.
+//	* continue: Continue the ruleset evaluation with the next rule.
+//	* return: Return from the current chain and continue at the next rule of the last chain. In a base chain it is equivalent to accept
+//	* jump <chain>: Continue at the first rule of <chain>. It will continue at the next rule after a return statement is issued
+//	* goto <chain>: Similar to jump, but after the new chain the evaluation will continue at the last chain instead of the one containing the goto statement
 
 type TRule struct {
 	SRule string // Mainly for debug purpose, each line of rules in a TTable
@@ -148,9 +185,25 @@ const (
 	CPktMulticast          = "Multicast"
 )
 
+type Tpriority int32
+
+const (
+	// priority refers to a number used to order the chains or to set them between some Netfilter operations. Possible values are:
+	NF_IP_PRI_CONNTRACK_DEFRAG Tpriority = -400
+	NF_IP_PRI_RAW                        = -300
+	NF_IP_PRI_SELINUX_FIRST              = -225
+	NF_IP_PRI_CONNTRACK                  = -200
+	NF_IP_PRI_MANGLE                     = -150
+	NF_IP_PRI_NAT_DST                    = -100
+	NF_IP_PRI_FILTER                     = 0
+	NF_IP_PRI_SECURITY                   = 50
+	NF_IP_PRI_NAT_SRC                    = 100
+	NF_IP_PRI_SELINUX_LAST               = 225
+	NF_IP_PRI_CONNTRACK_HELPER           = 300
+)
+
 type Tlength uint32
 type Tprotocol string
-type Tpriority uint32
 type Tpacketmark string
 
 // meta {length | nfproto | l4proto | protocol | priority}
@@ -362,6 +415,8 @@ type TStatementVerdict struct {
 	Verdict TVerdict
 	Chain   string // only used by jump | goto
 }
+
+// see https://wiki.nftables.org/wiki-nftables/index.php/Quick_reference-nftables_in_10_minutes
 type TStatementLog struct {
 }
 type TStatementReject struct {
@@ -377,11 +432,7 @@ type TStatementNat struct {
 type TStatementQueue struct {
 }
 
+type TUniqueTableName string // dotted table name such as "filter.ip", "nat.ip6" so that if there are "ip6" and "ip" family to table "filter", we can distinguish it
 type Nftables struct {
-	X, Y float64
-}
-
-func Read(path string) Nftables {
-	ret := Nftables{}
-	return ret
+	Tables map[TUniqueTableName]TTable // key: table name (i.e. "filter.ip", "filter.ip6")
 }

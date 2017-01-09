@@ -7,18 +7,12 @@ import (
 )
 
 func ParseToNftables(ipt iptables.Iptables) nftables.Nftables {
-	ret := nftables.Nftables{
-		X: 0,
-		Y: 0,
-	}
+	ret := nftables.Nftables{}
 	return ret
 }
 
 func ParseToPf(ipt iptables.Iptables) packetfilter.Pfilter {
-	ret := packetfilter.Pfilter{
-		X: 0,
-		Y: 0,
-	}
+	ret := packetfilter.Pfilter{}
 	return ret
 }
 
