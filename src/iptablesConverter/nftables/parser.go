@@ -69,18 +69,10 @@ func splitWithKeyInPlace(s string, find string) []string {
 	split := []string{s}
 	if strings.Contains(s, find) {
 		// we still need these tokens in place, replace it first with a marker
+		// i.e. line such as 'Root{child1{child2' would become 'Root { child1 { child2'
 		tempStr := strings.Replace(s, find, " "+find+" ", -1)
-
-		// look for it and split it
-		split = strings.Split(tempStr, find)
-		for si, ss := range split {
-			s := strings.TrimSpace(ss)
-			if s == "" {
-				split[si] = find
-			} else {
-				split[si] = s
-			}
-		}
+		// now split by space
+		split = strings.Fields(tempStr)
 	}
 	return split
 }
@@ -119,6 +111,7 @@ func tokenizeLineByQuotedText(line string) []string {
 				split := splitWithKeyInPlace(token, "{")
 				tail := append(split, retStrList[i+1:]...)
 				retStrList = append(retStrList[:i], tail...)
+				//log.Printf("Token='%s'\nsplit(%d):%+v\ntail(%d):%+v\nNewList(%d):%+v\n\n", token, len(split), split, len(tail), tail, len(retStrList), retStrList)
 
 				// try again
 				i--
@@ -128,6 +121,7 @@ func tokenizeLineByQuotedText(line string) []string {
 				split := splitWithKeyInPlace(token, "}")
 				tail := append(split, retStrList[i+1:]...)
 				retStrList = append(retStrList[:i], tail...)
+				//log.Printf("Token='%s'\nsplit(%d):%+v\ntail(%d):%+v\nNewList(%d):%+v\n\n", token, len(split), split, len(tail), tail, len(retStrList), retStrList)
 
 				// try again
 				i--
@@ -137,6 +131,7 @@ func tokenizeLineByQuotedText(line string) []string {
 				split := splitWithKeyInPlace(token, ";")
 				tail := append(split, retStrList[i+1:]...)
 				retStrList = append(retStrList[:i], tail...)
+				//log.Printf("Token='%s'\nsplit(%d):%+v\ntail(%d):%+v\nNewList(%d):%+v\n\n", token, len(split), split, len(tail), tail, len(retStrList), retStrList)
 
 				// try again
 				i--

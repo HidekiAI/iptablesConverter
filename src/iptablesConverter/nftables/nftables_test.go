@@ -61,14 +61,14 @@ func TestTextBlock(t *testing.T) {
 # filter
 table ip filter {
 	chain input { # input chain
-		type filter hook input priority 0; policy drop;	# default policy to drop
-			ct state invalid counter drop comment "drop invalid packets"
-			ct state {established, related} counter accept comment "accept all connections related to connections made by us"
-			iifname lo accept comment "accept loopback"
-			iifname != lo ip daddr 127.0.0.1/8 counter drop comment "don't worry, #comments cannot have double quotes inside it"
-			ip protocol icmp counter accept comment "comment has ' and # in it"
-			tcp dport 22 counter accept comment "accept ssh"
-			counter comment "count dropped packets"
+		type filter hook input priority 0; policy drop;# sticky semi-colon and comment edge-case
+		ct state invalid counter drop comment "drop invalid packets"
+		ct state {established, related} counter accept comment "accept all connections related to connections made by us"
+		iifname lo accept comment "accept loopback"
+		iifname != lo ip daddr 127.0.0.1/8 counter drop comment "don't worry, #comments cannot have double quotes inside it"
+		ip protocol icmp counter accept comment "comment has ' and # in it"
+		tcp dport 22 counter accept comment "accept ssh"
+		counter comment "count dropped packets"
 	}
 
 	chain output {
