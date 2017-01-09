@@ -1,7 +1,9 @@
 package nftables
 
 import "testing"
-import "strconv"
+
+//import "strconv"
+import "fmt"
 
 func FindTableSuccess(t *testing.T) {
 	m := make(map[TUniqueTableName]TTable)
@@ -42,16 +44,22 @@ func TestStripComment(t *testing.T) {
 	}
 }
 
-func printTextBlockRecursive(t *testing.T, tsPtr *TTextStatement, tabs string) {
+func testPrintTextBlockRecursive(t *testing.T, tsPtr *TTextStatement, ti int, si int) {
+	const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 	if tsPtr != nil {
-		outStr := tabs
-		for it, t := range tsPtr.Tokens {
-			outStr += "(" + strconv.Itoa(it) + ",'" + t + "'),"
+		outStr := fmt.Sprintf("%3d:(%16p:%16p)%s", si, tsPtr.Parent, tsPtr, tabs[:ti])
+		if len(tsPtr.Tokens) > 0 {
+			for _, t := range tsPtr.Tokens {
+				outStr += t + " "
+			}
 		}
 		t.Log(outStr)
+
 		// Now dump TTextSTatement.SubStatement[]
-		for _, ss := range tsPtr.SubStatement {
-			printTextBlockRecursive(t, ss, tabs+"\t")
+		if len(tsPtr.SubStatement) > 0 {
+			for _, ss := range tsPtr.SubStatement {
+				testPrintTextBlockRecursive(t, ss, ti+1, si)
+			}
 		}
 	}
 }
@@ -86,11 +94,13 @@ table ip filter {
 
 	# all in one line, with ';' right before '}' and adding {} to fool the parser }
 	chain nat{type filter hook nat priority 0;policy drop;}
+}
+# ip6 filter
+table ip6 filter {
 }`
 
 	tsList := MakeStatements(s)
 	for i, ts := range tsList {
-		t.Logf("Statement #%d", i)
-		printTextBlockRecursive(t, &ts, "\t")
+		testPrintTextBlockRecursive(t, ts, 0, i)
 	}
 }

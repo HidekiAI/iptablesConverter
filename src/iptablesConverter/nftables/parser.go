@@ -1,6 +1,7 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -31,6 +32,8 @@ type TTextStatement struct {
 	SubStatement []*TTextStatement // array of children blocks (i.e. 'table filter' has two children 'chain Input' and 'chain Output')
 	Parent       *TTextStatement   // Mainly used during custructions to walk in/out of '{}' blocks (See MakeStatements() method)
 }
+
+const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 
 // Strips out comments from a line, use this before you tokenize a line
 func stripComment(line string) string {
@@ -76,6 +79,32 @@ func splitWithKeyInPlace(s string, find string) []string {
 	}
 	return split
 }
+func splitAndAppend(s string, find string, tokens []string, tIndex int) []string {
+	var tokenizedList []string
+	if strings.Contains(s, find) {
+		// found one, so do some insertion
+		split := splitWithKeyInPlace(s, find)
+
+		// replace new collection of lines with current line
+		// i.e. "foo;bar" (len=1) -> "foo" ";" "bar" (len=3)
+		// first, append the rest of the lines to new set of line
+		var tail []string
+		if (tIndex + 1) > len(tokens) {
+			// nothing trailing, just make this the tail
+			tail = split
+		} else {
+			// append next line ... to end
+			tail = append(split, tokens[tIndex+1:]...)
+		}
+		// now cut current line, and append it
+		tokenizedList = append(tokens[:tIndex], tail...)
+	} else {
+		// return unaltered list
+		tokenizedList = tokens
+	}
+
+	return tokenizedList
+}
 
 // tokenize a line by spaces, but keep quoted strings (which may have spaces) as single token
 // It is NOT meant to be used on block of text, in common usage, you want to call stripComment()
@@ -92,7 +121,14 @@ func tokenizeLineByQuotedText(line string) []string {
 			if c > 1 {
 				i = i + c - 1 // subract 1 because the for{} will increment
 			}
-			retStrList = append(retStrList, qStr)
+			if strings.HasSuffix(qStr, "\";") {
+				// split the closing quote + semicolon into two tokens
+				retStrList = append(retStrList, qStr[:len(qStr)-1])
+				retStrList = append(retStrList, ";")
+
+			} else {
+				retStrList = append(retStrList, qStr)
+			}
 		}
 
 		// see if it is multiple tokens without " " (i.e. 'priority 0;policy drop' -> 0;policy)
@@ -195,32 +231,10 @@ func joinFieldsIfQuoted(strList []string) (string, int) {
 	}
 	// Could have probably done strings.Join(slice[:retCount], " ") here...
 	//log.Printf("\t\t\t> Parsed '%s' (count: %d) from '%s'\n", retString, retCount, strList)
-	if strings.HasSuffix(retString, ";") {
-		retString = retString[:len(retString)-1]
-	}
+	//if strings.HasSuffix(retString, ";") {
+	//	retString = retString[:len(retString)-1] + " ;"
+	//}
 	return retString, retCount
-}
-
-func splitAndAppend(token string, find string, tokens []string, iToken int) []string {
-	if strings.Contains(token, find) {
-		// found one, so do some insertion
-		split := strings.Split(token, find)
-
-		// replace new collection of lines with current line
-		// i.e. "foo; bar" (len=1) -> "foo" "bar" (len=2)
-		// first, append the rest of the lines to new set of line
-		var tail []string
-		if (iToken + 1) > len(tokens) {
-			// nothing trailing, just make this the tail
-			tail = split
-		} else {
-			// append next line ... to end
-			tail = append(split, tokens[iToken+1:]...)
-		}
-		// now cut current line, and append it
-		tokens = append(tokens[:iToken], tail...)
-	}
-	return tokens
 }
 
 // breaks apart lines with ';' into two lines, and also takes into account quoted
@@ -228,10 +242,15 @@ func splitAndAppend(token string, find string, tokens []string, iToken int) []st
 // At the same time, it will return multi-dimension to separte into blocks encountered
 // by each encounter of '}' (it does not take account of whether the matching '{' were
 // there)
-func tokenizeMultiStatements(bodyOfText string) [][]string {
-	log.Printf("Parsing:\n%s", bodyOfText)
+type depthedStatement struct {
+	tokens []string
+	depth  uint16
+}
 
-	tokenizedLines := make([][]string, 0)
+func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
+	//log.Printf("Parsing:\n%s", bodyOfText)
+
+	tokenizedLines := make([]depthedStatement, 0)
 
 	// first, tokenize each lines (with comments removed)
 	lines := strings.Split(bodyOfText, "\n")
@@ -245,7 +264,8 @@ func tokenizeMultiStatements(bodyOfText string) [][]string {
 	// By here, each lines have been stripped of comments which may have texts that may
 	// get misinterpreted (i.e. "#This line is not escaped because it is commented \")
 	// Join multi-lines that are escaped into single line
-	for lineNum, line := range lines {
+	for lineNum := 0; lineNum < len(lines); lineNum++ {
+		line := lines[lineNum]
 		if len(line) == 0 {
 			continue
 		}
@@ -264,17 +284,34 @@ func tokenizeMultiStatements(bodyOfText string) [][]string {
 		// now tokenize this line
 		tokens := tokenizeLineByQuotedText(lines[lineNum])
 		if len(tokens) > 0 {
-			tokenizedLines = append(tokenizedLines, tokens)
+			at := make([]string, 0)
+			for _, t := range tokens {
+				at = append(at, t)
+				// treat each encounter of ";" as newline
+				if t == ";" || t == "}" || t == "{" {
+					// new line
+					t := depthedStatement{tokens: at}
+					tokenizedLines = append(tokenizedLines, t)
+					at = make([]string, 0)
+				}
+			}
+			if len(at) > 0 {
+				t := depthedStatement{tokens: at}
+				tokenizedLines = append(tokenizedLines, t)
+				at = make([]string, 0)
+			}
 		}
 	}
 
 	// Now that escaped lines have been joined back, we need to next split any line which
 	// contains ';' into another line
-	indent := "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
+	indent := "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 	indentIndex := 0
 	for lineNum := 0; lineNum < len(tokenizedLines); lineNum++ {
-		tokens := tokenizedLines[lineNum]
-		lineStatement := "#" + strconv.Itoa(lineNum) + ": " + indent[:indentIndex]
+		tokens := tokenizedLines[lineNum].tokens
+		tokenizedLines[lineNum].depth = uint16(indentIndex)
+
+		lineStatement := fmt.Sprintf("#%3d:%2d:%s", lineNum, tokenizedLines[lineNum].depth, indent[:indentIndex])
 		for iToken := 0; iToken < len(tokens); iToken++ {
 			token := tokens[iToken]
 			if token == "{" {
@@ -290,6 +327,7 @@ func tokenizeMultiStatements(bodyOfText string) [][]string {
 				continue
 			}
 			if token == ";" {
+				lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 				continue
 			}
 			if strings.HasPrefix(token, "\"") || strings.HasPrefix(token, "'") {
@@ -299,12 +337,12 @@ func tokenizeMultiStatements(bodyOfText string) [][]string {
 			}
 			if strings.Contains(token, ";") {
 				// found one, so do some insertion
-				tokenizedLines[lineNum] = splitAndAppend(token, ";", tokens, iToken)
+				tokenizedLines[lineNum].tokens = splitAndAppend(token, ";", tokens, iToken)
 				token = tokens[iToken]
 			}
 			lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 		}
-		log.Printf(lineStatement)
+		//log.Print(lineStatement)
 	}
 
 	return tokenizedLines
@@ -359,43 +397,131 @@ INPUT FILE FORMAT
 //	* All characters from '#' to EOL (except when inside a quotation marks) will be stripped off
 //	* Lines suffix with escape '\' character will be joined
 //	* Lines with ';' will be split to multiple lines
-func MakeStatements(textBody string) []TTextStatement {
-	retStatements := make([]TTextStatement, 1)
-	var pCurrentBlock *TTextStatement
-	pCurrentBlock = &retStatements[0]
-
+func MakeStatements(textBody string) []*TTextStatement {
 	// tokenizeMultiStatements basically returns blocks of []string
 	tokenizedLines := tokenizeMultiStatements(textBody) // safety: this method won't split quoted text with semi-colons
-	for _, line := range tokenizedLines {
-		for _, token := range line {
-			if token == "{" {
-				newChild := TTextStatement{Parent: pCurrentBlock}
-				pCurrentBlock.SubStatement = append(pCurrentBlock.SubStatement, &newChild)
-				pCurrentBlock = &newChild
-				continue
-			}
-			if token == "}" {
-				pCurrentBlock = pCurrentBlock.Parent
-				if pCurrentBlock == nil {
-					// New block
-					newBlock := TTextStatement{}
-					retStatements = append(retStatements, newBlock)
-					pCurrentBlock = &newBlock
-				}
-				// Prepare for next new statement
-				newChild := TTextStatement{Parent: pCurrentBlock}
-				if pCurrentBlock.Parent != nil {
-					pCurrentBlock.Parent.SubStatement = append(pCurrentBlock.SubStatement, &newChild)
-					pCurrentBlock = &newChild
-				} else {
-					pCurrentBlock.SubStatement = append(pCurrentBlock.SubStatement, &newChild)
-					pCurrentBlock = &newChild
-				}
-				continue
-			}
 
-			pCurrentBlock.Tokens = append(pCurrentBlock.Tokens, token)
-		}
+	// NOTE: If anybody knows a better way to do this without pointer, you're welcome to fix this
+	//       it's just easier to do link-list using pointer so it's the way I did it...
+	var retStatements []*TTextStatement
+	var iLine uint16 = 0
+	for ; iLine < uint16(len(tokenizedLines)); iLine++ {
+		// line number returned will only be based on new major block, i.e. if a block has two tables:
+		//	table ip filter{...}
+		//	table ip6 filter{...}
+		// it will only return from recursions at root, so it's safe to create new blocks each time here
+		//log.Printf("\n=== Block at line %3d (depth: %d) [%+v]", iLine, tokenizedLines[iLine].depth, tokenizedLines[iLine])
+		pParent := new(TTextStatement) // pParent.Parent is ALWAYS nil
+		retStatements = append(retStatements, pParent)
+		iLine, _ = makeStatementRecursive(tokenizedLines, iLine, 0, pParent) // honor the line number it returns back to skip where needed (i.e. when '}' is encountered, it walked inside recursively)
 	}
 	return retStatements
+}
+
+func appendNewBlockStatement(pParent *TTextStatement) *TTextStatement {
+	newChild := new(TTextStatement)
+	newChild.Parent = pParent
+	pParent.SubStatement = append(pParent.SubStatement, newChild)
+	return newChild
+}
+
+func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, tokenIndexRO uint16, pParentRO *TTextStatement) (uint16, uint16) {
+	if pParentRO == nil {
+		log.Panicf("Programmer error: p should never be nil! - lineIndex=%d, tokenIndex=%d", lineIndexRO, tokenIndexRO)
+	}
+	if lineIndexRO >= uint16(len(linesRO)) {
+		log.Panicf("L%2d:T%2d(S:%2d) Line Index >= %d",
+			lineIndexRO,
+			tokenIndexRO,
+			len(pParentRO.SubStatement),
+			len(linesRO))
+		return lineIndexRO, tokenIndexRO
+	}
+	if tokenIndexRO >= uint16(len(linesRO[lineIndexRO].tokens)) {
+		log.Panicf("L%2d:T%2d(S:%2d) Token Index >= %d",
+			lineIndexRO,
+			tokenIndexRO,
+			len(pParentRO.SubStatement),
+			len(linesRO[lineIndexRO].tokens))
+		return lineIndexRO, tokenIndexRO
+	}
+
+	// TODO: Clean up this in future, no need to copy, all params are ref-copied anyways
+	iLineIndex := lineIndexRO
+	iTokenIndex := tokenIndexRO
+
+	// walk through statements based on depth
+	for {
+		// Create new SubStatement and append it to the parent before we begin working with it
+		pCurrentBlock := appendNewBlockStatement(pParentRO)
+
+		logMsg := fmt.Sprintf("L%2d:T%2d[%12p](P:%12p,S:%2d) %2d %s",
+			lineIndexRO,
+			tokenIndexRO,
+			pCurrentBlock,
+			pParentRO,
+			len(pParentRO.SubStatement),
+			linesRO[lineIndexRO].depth,
+			tabs[:linesRO[lineIndexRO].depth])
+
+		//log.Printf("\n\n### L%2d:T%2d[%12p]>>> Processing '%+v'", lineIndexRO, tokenIndexRO, pCurrentBlock, linesRO[iLineIndex])
+		//log.Printf("# %2d:%2d %s%+v", iLineIndex, linesRO[iLineIndex].depth, tabs[:linesRO[iLineIndex].depth], linesRO[iLineIndex])
+		// walk through the tokens
+		for ; iTokenIndex < uint16(len(linesRO[iLineIndex].tokens)); iTokenIndex++ {
+			// whether the token is '{', '}', or ';', record the token before we proceed
+			token := linesRO[iLineIndex].tokens[iTokenIndex]
+			pCurrentBlock.Tokens = append(pCurrentBlock.Tokens, token)
+
+			logMsg += "'" + token + "',"
+
+			switch token {
+			case "{":
+				{
+					// prepare for next token
+					iTokenIndex++ // next token
+					if iTokenIndex >= uint16(len(linesRO[iLineIndex].tokens)) {
+						// move to next statement line
+						iLineIndex++
+						iTokenIndex = 0
+					}
+
+					// push: current block is the parent
+					//log.Printf("\t>>> Token='%s' - Preparing for next set '%+v'", token, linesRO[iLineIndex])
+					iLineIndex, iTokenIndex = makeStatementRecursive(linesRO, iLineIndex, iTokenIndex, pCurrentBlock)
+
+					// the "}" will return new LineIndex and TokenIndex - by the time '}' is encountered,
+					// it may have proceeded several tokens (and lines) due to nested blocks
+					continue // see what we have as next token
+				}
+
+			case "}":
+				{
+					//log.Printf("\t<<< Token='%s' DONE - returning iLine=%d, iToken=%d (Next: '%+v')\n\n", token, iLineIndex, iTokenIndex, linesRO[iLineIndex])
+					// pop (return to caller of matching "{" with current LineIndex and TokenIndex)
+					// let the calling method continue on from where it took off (next token)
+					return iLineIndex, iTokenIndex
+				}
+
+			case ";":
+				{
+					// only create next block if some token follows the ';'
+					if (iTokenIndex + 1) < uint16(len(linesRO[iLineIndex].tokens)) {
+						// for token ";" it is same parent (append it to Parent), just new statement/line
+						pCurrentBlock = appendNewBlockStatement(pParentRO)
+					}
+				}
+			} // switch toke
+		} // for iTokenIndex
+		//log.Print(logMsg)
+
+		// see if next/new statement belongs to this block
+		if (iLineIndex+1 >= uint16(len(linesRO))) || (linesRO[iLineIndex+1].depth <= 0) {
+			break
+		}
+		iLineIndex++
+		iTokenIndex = 0
+	} // for depth
+
+	// if here, we're done with all tokens, so we can proceed to next line
+	return iLineIndex, iTokenIndex
 }
