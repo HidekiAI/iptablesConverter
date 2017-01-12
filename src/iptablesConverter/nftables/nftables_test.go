@@ -5,28 +5,35 @@ import "testing"
 //import "strconv"
 import "fmt"
 
-func FindTableSuccess(t *testing.T) {
-	m := make(map[TUniqueTableName]TTable)
-	m["ip.filter"] = TTable{Name: "filter", Family: CAddressFamilyIP}
-	nft := Nftables{Tables: m}
-	if found, _ := nft.FindTable(CAddressFamilyIP, "filter"); found == false {
-		t.Fail()
-	}
-}
-
-func FindTableNotFound(t *testing.T) {
-	m := make(map[TUniqueTableName]TTable)
-	m["ip6.filter"] = TTable{Name: "filter", Family: CAddressFamilyIP6}
-	nft := Nftables{Tables: m}
-	// Should not find "filter" for it's not unique (i.e. "ip.filter" vs "ip6.filter")
-	if found, _ := nft.FindTable(CAddressFamilyIP, "filter"); found {
-		t.Fail()
-	}
-}
-
-func AddTableFilter(t *testing.T) {
+func TestAddTableSuccess(t *testing.T) {
 	var nft Nftables
-	if found := nft.AddTable(CAddressFamilyIP6, "filter"); found {
+	addedT := nft.AddTable(CAddressFamilyIP, "filter")
+	if addedT == nil {
+		t.Fail()
+	}
+	found := nft.FindTable(CAddressFamilyIP, "filter")
+	if found == nil {
+		t.Fail()
+	}
+}
+
+func TestAddTableNotFound(t *testing.T) {
+	var nft Nftables
+	addedT := nft.AddTable(CAddressFamilyIP6, "filter")
+	if addedT == nil {
+		t.Fail()
+	}
+	// Should not find "filter" for it's not unique (i.e. "ip.filter" vs "ip6.filter")
+	found := nft.FindTable(CAddressFamilyIP, "filter")
+	if found != nil {
+		t.Fail()
+	}
+}
+
+func TestFindTableNoAdd(t *testing.T) {
+	var nft Nftables
+	found := nft.FindTable(CAddressFamilyIP6, "filter")
+	if found != nil {
 		t.Errorf("Found table in an empty Nftables\n")
 		t.Fail()
 	}
@@ -102,5 +109,15 @@ table ip6 filter {
 	tsList := MakeStatements(s)
 	for i, ts := range tsList {
 		testPrintTextBlockRecursive(t, ts, 0, i)
+	}
+}
+
+func TestDeserializeFromFile(t *testing.T) {
+	path := "nft.rules"
+	nft := Read(path)
+	t.Logf("%+v", nft)
+	// assume the rules files only has two tables (ip and ip6)
+	if len(nft.Tables) != 2 {
+		t.Fail()
 	}
 }

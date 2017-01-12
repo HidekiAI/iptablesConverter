@@ -35,6 +35,8 @@ type TTextStatement struct {
 
 const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 
+// TODO: Use type TToken and CToken* for consistencies in the future
+
 // Strips out comments from a line, use this before you tokenize a line
 func stripComment(line string) string {
 	if strings.Contains(line, "\n") {

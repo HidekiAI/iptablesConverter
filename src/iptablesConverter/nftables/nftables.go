@@ -10,17 +10,30 @@ package nftables
 // on 'gocode'/Vim-go and Syntastic (or any other code-completion/intellisense methods) to make your life
 // easier...
 
+type TToken string
+
+const (
+	CTokenTable TToken = "table"
+	CTokenChain        = "chain"
+	CTokenSC           = ";"
+	CTokenOB           = "{"
+	CTokenCB           = "}"
+	CTokenHash         = "#"
+	CTokenFS           = `/`
+)
+
 // Address families determine the type of packets which are processed. For each address family the kernel contains so called hooks at specific stages of the packet processing paths, which invoke nftables if rules for these hooks exist.
 type TAddressFamily string
 
 // All nftables objects exist in address family specific namespaces, therefore all identifiers include an address family. If an identifier is specified without an address family, the ip family is used by default.
 const (
-	CAddressFamilyIP     TAddressFamily = "ip"
-	CAddressFamilyIP6                   = "ip6"
-	CAddressFamilyINET                  = "inet"
-	CAddressFamilyARP                   = "arp"
-	CAddressFamilyBridge                = "bridge"
-	CAddressFamilyNetDev                = "netdev"
+	CAddressFamilyIP        TAddressFamily = "ip"
+	CAddressFamilyIP6                      = "ip6"
+	CAddressFamilyINET                     = "inet"
+	CAddressFamilyARP                      = "arp"
+	CAddressFamilyBridge                   = "bridge"
+	CAddressFamilyNetDev                   = "netdev"
+	CAddressFamilyUndefined                = ""
 )
 
 type THookName string
