@@ -14,12 +14,24 @@ to cgo, which you may be able to use your favorite search engines to speculate.
 But mainly because I wanted to make sure it can be built on any \*NIX which does not have the capabilities
 to build the associated lib files (i.e. bulding iptable lib files in BSD?).
 
-
-
 # Examples
+TODO: Use more practical examples, not snippets for test file
+```
+func TestDeserializeFromFile(t *testing.T) {
+	path := "nft.rules"
+	nft := Read(path)
+
+	t.Logf("%+v", nft)
+	// assume the rules files only has two tables (ip and ip6)
+	if len(nft.Tables) != 2 {
+		t.Fail()
+	}
+}
+```
 
 # TODO
 - [x] Reading and deserializing iptables.rule and ip6tables.rule files into Iptables object
+- [x] Parse Nftable rule files
 - [ ] Nftable serialization from Iptables package
 - [ ] PF serialization from Iptables package
 - [ ] Unit-test for each packages
