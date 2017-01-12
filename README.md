@@ -32,10 +32,12 @@ func TestDeserializeFromFile(t *testing.T) {
 # TODO
 - [x] Reading and deserializing iptables.rule and ip6tables.rule files into Iptables object
 - [x] Parse Nftable rule files
-- [ ] Nftable serialization from Iptables package
+- [ ] Deserialization of nft.rules files to Nftable object
+- [ ] Nftable serialization from nft.rules file or Iptables package
 - [ ] PF serialization from Iptables package
 - [ ] Unit-test for each packages
 - [ ] This README.md file
+- [ ] Create build rules for Gentoo (ebuild) and Makefile for 'make install' so that generated binaries can be installed in 'bin' (or 'sbin'?) paths
 
 # Caveats
 Currently, less used iptables match extensions (and its options) throw a log.Panic() and will be

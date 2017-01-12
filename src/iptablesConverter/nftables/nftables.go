@@ -1,5 +1,12 @@
 package nftables
 
+// Set logLevel to:
+//	0: no logging
+//	1: info
+//	2: debug
+//	3: verbose debug
+const logLevel = 2
+
 // The types and fields comes from 'man 8 nft'
 // Conventions:
 //	* Txxx - Type declarations
@@ -13,14 +20,85 @@ package nftables
 type TToken string
 
 const (
-	CTokenTable TToken = "table"
-	CTokenChain        = "chain"
-	CTokenSC           = ";"
-	CTokenOB           = "{"
-	CTokenCB           = "}"
-	CTokenHash         = "#"
-	CTokenFS           = `/`
+	CTokenTable   TToken = "table"
+	CTokenChain   TToken = "chain"
+	CTokenSC      TToken = ";"
+	CTokenOB      TToken = "{"
+	CTokenCB      TToken = "}"
+	CTokenHash    TToken = "#"
+	CTokenFS      TToken = `/`
+	CTokeneq      TToken = "eq" // i.e. 'meta skgid eq 3000'
+	CTokenneq     TToken = "neq"
+	CTokenNE      TToken = "!=" // similar to iptable's '!' token i.e. 'meta iif != eth0'
+	CTokenEQ      TToken = "==" // i.e. 'meta mark and 0x03 == 0x01'
+	CTokenGT      TToken = ">"  // i.e. 'meta length > 1000'
+	CTokengt      TToken = "gt" // i.e. 'skuid gt 3000'
+	CTokengte     TToken = "gte"
+	CTokenGE      TToken = ">="
+	CTokenLT      TToken = "<"
+	CTokenlt      TToken = "lt" // i.e. 'skgid lt 1000'
+	CTokenlte     TToken = "lte"
+	CTokenLE      TToken = "<="
+	CTokenRange   TToken = "-" // i.e. numerical range 1024-2048
+	CTokenCS      TToken = "," // i.e. grouping "http,https,ssh,22-23,domain"
+	CTokenSet     TToken = "set"
+	CTokenAnd     TToken = "and" // i.e. 'meta mark and 0x03 == 0x01', 'meta mark and 0x03 != 0x01'
+	CTokenOr      TToken = "or"  // i.e. 'meta mark set 0xffffffe0 or 0x16', 'ct mark or 0x23 == 0x11'
+	CTokenXor     TToken = "xor" // i.e. 'meta mark set 0xfffe xor 0x16'
+	CTokenDefault TToken = "default"
+
+	// Chains
+	CTokenChainType     TToken = "type" //filter, route, nat
+	CTokenChainHook     TToken = "hook"
+	CTokenChainPriority TToken = "priority"
+	CTokenChainPolicy   TToken = "policy"
+	CTokenChainDevice   TToken = "device"
+
+	// Statements
+	CTokenStatementCT      TToken = "ct"
+	CTokenStatementLog     TToken = "log"
+	CTokenStatementReject  TToken = "reject"
+	CTokenStatementCounter TToken = "counter"
+	CTokenStatementMeta    TToken = "meta"
+	CTokenStatementLimit   TToken = "limit"
+	CTokenStatementSNAT    TToken = "snat"
+	CTokenStatementDNAT    TToken = "dnat"
+	CTokenStatementQueue   TToken = "queue"
+	CTokenStatementIP6Ext  TToken = "ip6ext"
+
+	// Matches (Chain)
+	CTokenMatchIP      TToken = "ip"
+	CTokenMatchIP6     TToken = "ip6"
+	CTokenMatchTCP     TToken = "tcp"
+	CTokenMatchUDP     TToken = "udp"
+	CTokenMatchUDPLite TToken = "udplite"
+	CTokenMatchSCTP    TToken = "sctp"
+	CTokenMatchDCCP    TToken = "dccp"
+	CTokenMatchAH      TToken = "ah"
+	CTokenMatchESP     TToken = "esp"
+	CTokenMatchComp    TToken = "comp"
+	CTokenMatchICMP    TToken = "icmp"
+	CTokenMatchICMPv6  TToken = "icmpv6"
+	CTokenMatchEther   TToken = "ether"
+	CTokenMatchDST     TToken = "dst"
+	CTokenMatchFrag    TToken = "frag"
+	CTokenMatchHBH     TToken = "hbh"
+	CTokenMatchMH      TToken = "mh"
+	CTokenMatchRT      TToken = "rt"
+	CTokenMatchVLAN    TToken = "vlan"
+	CTokenMatchARP     TToken = "arp"
+	CTokenMatchCT      TToken = "ct"
+	CTokenMatchMeta    TToken = "meta"
 )
+
+type TEquate struct {
+	Token TToken
+	NE    bool
+	GT    bool
+	GE    bool
+	LT    bool
+	LE    bool
+}
 
 // Address families determine the type of packets which are processed. For each address family the kernel contains so called hooks at specific stages of the packet processing paths, which invoke nftables if rules for these hooks exist.
 type TAddressFamily string
@@ -28,12 +106,12 @@ type TAddressFamily string
 // All nftables objects exist in address family specific namespaces, therefore all identifiers include an address family. If an identifier is specified without an address family, the ip family is used by default.
 const (
 	CAddressFamilyIP        TAddressFamily = "ip"
-	CAddressFamilyIP6                      = "ip6"
-	CAddressFamilyINET                     = "inet"
-	CAddressFamilyARP                      = "arp"
-	CAddressFamilyBridge                   = "bridge"
-	CAddressFamilyNetDev                   = "netdev"
-	CAddressFamilyUndefined                = ""
+	CAddressFamilyIP6       TAddressFamily = "ip6"
+	CAddressFamilyINET      TAddressFamily = "inet"
+	CAddressFamilyARP       TAddressFamily = "arp"
+	CAddressFamilyBridge    TAddressFamily = "bridge"
+	CAddressFamilyNetDev    TAddressFamily = "netdev"
+	CAddressFamilyUndefined TAddressFamily = ""
 )
 
 type THookName string
@@ -45,11 +123,11 @@ const (
 	//	* The bridge family handles ethernet packets traversing bridge devices.
 	//	* The hook for netdev is: ingress.
 	CHookPrerouting  THookName = "prerouting"  // ip, ip6, and inet
-	CHookInput                 = "input"       // ip, ip6, inet, arp
-	CHookForward               = "forward"     // ip, ip6, inet
-	CHookOutput                = "output"      // ip, ip6, inet, arp
-	CHookPostRouting           = "postrouting" // ip, ip6, inet
-	CHookIngress               = "ingress"     // netdev
+	CHookInput       THookName = "input"       // ip, ip6, inet, arp
+	CHookForward     THookName = "forward"     // ip, ip6, inet
+	CHookOutput      THookName = "output"      // ip, ip6, inet, arp
+	CHookPostRouting THookName = "postrouting" // ip, ip6, inet
+	CHookIngress     THookName = "ingress"     // netdev
 )
 
 type TFamilyHook struct {
@@ -66,15 +144,17 @@ type TTableCommand string
 
 const (
 	CTableCommandAdd    TTableCommand = "add"
-	CTableCommandDelete               = "delete"
-	CTableCommandList                 = "list"
-	CTableCommandFlush                = "flush"
+	CTableCommandDelete TTableCommand = "delete"
+	CTableCommandList   TTableCommand = "list"
+	CTableCommandFlush  TTableCommand = "flush"
 )
 
 type TTable struct {
 	Name   TTableName // i.e. 'nft add table filter', Name=="filter"
 	Family TAddressFamily
-	Chains []TChain
+	// unlike iptables, there are no default chains such as 'INPUT', 'OUTPUT', 'FORWARD', etc
+	// Not sure if ChainName is case sensitive, but we'll allow "Input", "INPUT", and "input" to be the same?
+	Chains map[TChainName]*TChain // i.e. INPUT, OUTPUT, FORWARD chains
 }
 
 //Chains are containers for rules. They exist in two kinds, base chains and regular chains.
@@ -86,24 +166,25 @@ type TChainType string
 
 const (
 	CChainCommandAdd    TChainCommand = "add"
-	CChainCommandCreate               = "create"
-	CChainCommandDelete               = "delete"
-	CChainCommandRename               = "rename"
-	CChainCommandList                 = "list"
-	CChainCommandFlush                = "flush"
+	CChainCommandCreate TChainCommand = "create"
+	CChainCommandDelete TChainCommand = "delete"
+	CChainCommandRename TChainCommand = "rename"
+	CChainCommandList   TChainCommand = "list"
+	CChainCommandFlush  TChainCommand = "flush"
 
+	// type <type> hook <hook> [device <device>] priority <priority> ; [policy <policy>;]
 	// type refers to the kind of chain to be created. Possible types are:
 	//	filter: Supported by arp, bridge, ip, ip6 and inet table families.
 	//	route: Mark packets (like mangle for the output hook, for other hooks use the type filter instead), supported by ip and ip6.
 	//	nat: In order to perform Network Address Translation, supported by ip and ip6.
 	CChainTypeFilter TChainType = "filter"
-	CChainTypeRoute             = "route"
-	CChainTypeNat               = "nat"
+	CChainTypeRoute  TChainType = "route"
+	CChainTypeNat    TChainType = "nat"
 )
 
 type TChain struct {
-	Name TChainName
 	Rule TRule
+	Next *TChain // chains are ordered
 }
 
 // Rules are constructed from two kinds of components according to a set of grammatical
@@ -120,13 +201,16 @@ type TRuleCommand string
 
 const (
 	CRuleCommandAdd     TRuleCommand = "add"
-	CRuleCommandInsert               = "insert"
-	CRuleCommandDelete               = "delete"
-	CRuleCommandReplace              = "replace"
+	CRuleCommandInsert  TRuleCommand = "insert"
+	CRuleCommandDelete  TRuleCommand = "delete"
+	CRuleCommandReplace TRuleCommand = "replace"
 )
 
-// Statement is the action performed when the packet match the rule. It could be terminal and non-terminal. In a certain rule we can consider several non-terminal statements but only a single terminal statement.
-// The verdict statement alters control flow in the ruleset and issues policy decisions for packets. The valid verdict statements are:
+// Statement is the action performed when the packet match the rule. It could be terminal and non-terminal.
+// In a certain rule we can consider several non-terminal statements but only a single terminal statement.
+//
+// The verdict statement alters control flow in the ruleset and issues policy decisions for packets. The
+// valid verdict statements are:
 //	* accept: Accept the packet and stop the remain rules evaluation.
 //	* drop: Drop the packet and stop the remain rules evaluation.
 //	* queue: Queue the packet to userspace and stop the remain rules evaluation.
@@ -134,45 +218,64 @@ const (
 //	* return: Return from the current chain and continue at the next rule of the last chain. In a base chain it is equivalent to accept
 //	* jump <chain>: Continue at the first rule of <chain>. It will continue at the next rule after a return statement is issued
 //	* goto <chain>: Similar to jump, but after the new chain the evaluation will continue at the last chain instead of the one containing the goto statement
+type TRuleType struct {
+	ChainType TChainType
+	Hook      THookName
+	Device    string
+	Priority  Tpriority
+	Policy    TVerdict // type can have default policy
+}
+type TRulePayload struct {
+	Ether   TExpressionHeaderEther
+	Vlan    TExpressionHeaderVlan
+	Arp     TExpressionHeaderArp
+	Ip      TExpressionHeaderIpv4
+	Ip6     TExpressionHeaderIpv6
+	Tcp     TExpressionHeaderTcp
+	Udp     TExpressionHeaderUdp
+	UdpLite TExpressionHeaderUdpLite
+	Sctp    TExpressionHeaderSctp
+	Dccp    TExpressionHeaderDccp
+	Ah      TExpressionHeaderAH
+	Esp     TExpressionHeaderESP
+	IpComp  TExpressionHeaderIpcomp
+	Ip6Ext  TExpressionHeaderIpv6Ext
 
+	Icmp   TICMP
+	Icmpv6 TICMPv6
+	Dst    TMatchDST
+	Frag   TFrag
+	Hbh    THbh
+	Mh     TMH
+	Rt     TRouting
+}
+type TRuleStatement struct {
+	Verdict TStatementVerdict
+	Log     TStatementLog
+	Reject  TStatementReject
+	Counter TStatementCounter
+	Meta    TExpressionMeta
+	Limit   TStatementLimit
+	Nat     TStatementNat
+	Queue   TStatementQueue
+}
 type TRule struct {
-	SRule string // Mainly for debug purpose, each line of rules in a TTable
+	SRule []string // Mainly for debug purpose, each line of rules in a TTable, it is array so it can be tokenized (i.e. differences between "This is a string" as single token versus 4 tokens)
+
+	// type
+	Policy TVerdict
+	Type   TRuleType
 
 	// Expression
-	Meta    TExpressionMeta
-	Payload struct {
-		Ether   TExpressionHeaderEther
-		Vlan    TExpressionHeaderVlan
-		Arp     TExpressionHeaderArp
-		Ip      TExpressionHeaderIpv4
-		Ip6     TExpressionHeaderIpv6
-		Tcp     TExpressionHeaderTcp
-		Udp     TExpressionHeaderUdp
-		UdpLite TExpressionHeaderUdpLite
-		Sctp    TExpressionHeaderSctp
-		Dccp    TExpressionHeaderDccp
-		Ah      TExpressionHeaderAH
-		Esp     TExpressionHeaderESP
-		IpComp  TExpressionHeaderIpcomp
-		Ip6Ext  TExpressionHeaderIpv6Ext
-	}
+	Meta      TExpressionMeta
+	Payload   TRulePayload
 	ConnTrack TExpressionConntrack
 
 	// Statement
-	Statement struct {
-		Verdict TStatementVerdict
-		Log     TStatementLog
-		Reject  TStatementReject
-		Counter TStatementCounter
-		Meta    TStatementMeta
-		Limit   TStatementLimit
-		Nat     TStatementNat
-		Queue   TStatementQueue
-	}
+	Statement TRuleStatement
 }
 
-type Tbitmask uint
-type Tlladdr []uint // The link layer address type is used for link layer addresses. Link layer addresses are specified as a variable amount of groups of two hexadecimal digits separated using colons (:).
+//type Tlladdr []uint // The link layer address type is used for link layer addresses. Link layer addresses are specified as a variable amount of groups of two hexadecimal digits separated using colons (:).
 type Tipv4addr struct {
 	Addr  uint32
 	SAddr string // dotted address (i.e. "127.0.0.1") without the mask
@@ -184,268 +287,46 @@ type Tipv6addr struct {
 
 // Expressions represent values, either constants like network addresses, port numbers etc. or data gathered from the packet during ruleset evaluation. Expressions can be combined using binary, logical, relational and other types of expressions to form complex or relational (match) expressions.  They are also used as arguments to certain types of operations, like NAT, packet marking etc.
 // Each expression has a data type, which determines the size, parsing and representation of symbolic values and type compatibility with other expressions.
-type Tifaceindex uint32   //iface_index
-type Tifname [16]byte     // ifname - 16-bytes string
-type Tifacetype uint16    // iface_type 16 bit number
-type Tuid uint32          // uid
-type Tgid uint32          // gid
-type Trealm uint32        // realm
-type Tdevgrouptype uint32 // devgroup_type
-type Tpkttype string      // pkt_type - Unicast, Broadcast, Multicast
-const (
-	CPktUnicast   Tpkttype = "Unicast"
-	CPktBroadcast          = "Broadcast"
-	CPktMulticast          = "Multicast"
-)
+//type Tifname [16]byte     // ifname - 16-bytes string
 
 type Tpriority int32
 
 const (
 	// priority refers to a number used to order the chains or to set them between some Netfilter operations. Possible values are:
 	NF_IP_PRI_CONNTRACK_DEFRAG Tpriority = -400
-	NF_IP_PRI_RAW                        = -300
-	NF_IP_PRI_SELINUX_FIRST              = -225
-	NF_IP_PRI_CONNTRACK                  = -200
-	NF_IP_PRI_MANGLE                     = -150
-	NF_IP_PRI_NAT_DST                    = -100
-	NF_IP_PRI_FILTER                     = 0
-	NF_IP_PRI_SECURITY                   = 50
-	NF_IP_PRI_NAT_SRC                    = 100
-	NF_IP_PRI_SELINUX_LAST               = 225
-	NF_IP_PRI_CONNTRACK_HELPER           = 300
+	NF_IP_PRI_RAW              Tpriority = -300
+	NF_IP_PRI_SELINUX_FIRST    Tpriority = -225
+	NF_IP_PRI_CONNTRACK        Tpriority = -200
+	NF_IP_PRI_MANGLE           Tpriority = -150
+	NF_IP_PRI_NAT_DST          Tpriority = -100
+	NF_IP_PRI_FILTER           Tpriority = 0
+	NF_IP_PRI_SECURITY         Tpriority = 50
+	NF_IP_PRI_NAT_SRC          Tpriority = 100
+	NF_IP_PRI_SELINUX_LAST     Tpriority = 225
+	NF_IP_PRI_CONNTRACK_HELPER Tpriority = 300
 )
 
-type Tlength uint32
-type Tprotocol string
-type Tpacketmark string
-
-// meta {length | nfproto | l4proto | protocol | priority}
-// [meta] {mark | iif | iifname | iiftype | oif | oifname | oiftype | skuid | skgid | nftrace | rtclassid | ibriport | obriport | pkttype | cpu | iifgroup | oifgroup | cgroup}
-type TExpressionMeta struct {
-	Length    Tlength       // length		integer (32 bit)	Length of the packet in bytes
-	Protocol  Tprotocol     // protocol		ether_type			Ethertype protocol value
-	Priority  Tpriority     // priority		integer (32 bit)	TC packet priority
-	Mark      Tpacketmark   // mark			packetmark			Packet mark
-	Iif       Tifaceindex   // iif			iface_index			Input interface index
-	Iifname   string        // iifname		string				Input interface name
-	Iiftype   Tifaceindex   // iiftype		iface_type			Input interface type
-	Oif       Tifaceindex   // oif			iface_index			Output interface index
-	Oifname   string        // oifname		string				Output interface name
-	Oiftype   Tifacetype    // oiftype		iface_type			Output interface hardware type
-	Skuid     Tuid          // skuid		uid					UID associated with originating socket
-	Skgid     Tgid          // skgid		gid					GID associated with originating socket
-	Rtclassid Trealm        // rtclassid	realm				Routing realm
-	Ibriport  string        // ibriport		string				Input bridge interface name
-	Obriport  string        // obriport		string				Output bridge interface name
-	Pkttype   Tpkttype      // pkttype		pkt_type			packet type
-	Cpu       uint32        // cpu			integer (32 bits)	cpu number processing the packet
-	Iifgroup  Tdevgrouptype // iifgroup		devgroup_type		incoming device group
-	Oifgroup  Tdevgrouptype // oifgroup		devgroup_type		outgoing device group
-	Cgroup    uint32        // cgroup		integer (32 bits)	control group id
-}
-
-type Tetheraddr string
-type Tethertype string
-
-// ether [ethernet header field]
-type TExpressionHeaderEther struct {
-	Daddr Tetheraddr // daddr	ether_addr	Destination MAC address
-	Saddr Tetheraddr // saddr	ether_addr	Source MAC address
-	Type  Tethertype // type	ether_type	EtherType
-}
-
-// vlan [VLAN header field]
-type TExpressionHeaderVlan struct {
-	Id   uint16 // vlan id 12-bits
-	Cfi  int    // canonical format indicator flag
-	Pcp  uint8  // priority code point 3-bits
-	Type Tethertype
-}
-
-// arp [ARP header field]
-type Tarpop string
-type TExpressionHeaderArp struct {
-	Htype     uint16 // ARP hardware type
-	Ptype     Tethertype
-	Hlen      uint8
-	Plen      uint8
-	Operation Tarpop
-}
-
-// ip [IPv4 header field]
-type Tinetproto string // inet_proto
-type TExpressionHeaderIpv4 struct {
-	Version   uint8      // IP header version 4-bits
-	Hdrlength uint8      // IP header length including options 4-bits
-	Dscp      uint8      // Differentiated Services Code Point 6-bits
-	Ecn       uint8      // Explicit Congestion Notification 2-bits
-	Length    uint16     // Total packet length
-	Id        uint16     // IP ID
-	FragOff   uint16     // Fragment offset
-	Ttl       uint8      // 8-bits
-	Protocol  Tinetproto // inet_proto - Upper layer protocol
-	Checksum  uint16     // IP header checksum
-	Saddr     Tipv4addr  // source address ipv4_addr
-	Daddr     Tipv4addr  // Destination address ipv4_addr
-}
-
-// ip6 [IPv6 header field]
-type TExpressionHeaderIpv6 struct {
-	Version   uint8  // IP header version 4-bits
-	Priority  string // NOTE: type not documented on man page
-	Dscp      uint8  // Differentiated Service Code Point 6-bits
-	Ecn       uint8  // Explicit Congestion Notification 2-bits
-	Flowlabel uint32 // 20-bits
-	Length    uint16 // Payload length
-	Nexthdr   Tinetproto
-	Hoplimit  uint8
-	Saddr     Tipv6addr
-	Daddr     Tipv6addr
-}
-
-type Tinetservice uint32 // inet_service - ports
-type Ttcpflags uint32    // tcp_flags
-// tcp [TCP header field]
-type TExpressionHeaderTcp struct {
-	Sport    Tinetservice
-	Dport    Tinetservice
-	Sequence uint32    // sequence number
-	Ackseq   uint32    // Acknowledgement number
-	Doff     uint8     // 4-bits data offset
-	Reserved uint8     // 4-bits reserved area
-	Flags    Ttcpflags // tcp_flags
-	Window   uint16
-	Checksum uint16
-	Urgptr   uint16 // Urgetn pointer
-}
-
-// udp [UDP header field]
-type TExpressionHeaderUdp struct {
-	Sport    Tinetservice
-	Dport    Tinetservice
-	Length   uint16
-	Checksum uint16
-}
-
-// udplite [UDP-Lite header field]
-type TExpressionHeaderUdpLite struct {
-	Sport    Tinetservice
-	Dport    Tinetservice
-	Cscov    uint16 // Checksum coverage
-	Checksum uint16
-}
-
-// sctp [SCTP header field]
-type TExpressionHeaderSctp struct {
-	Sport    Tinetservice
-	Dport    Tinetservice
-	Vtag     uint32 // Verification tag
-	Checksum uint32
-}
-
-// dccp [DCCP header field]
-type TExpressionHeaderDccp struct {
-	Sport Tinetservice
-	Dport Tinetservice
-}
-
-// ah [AH header field]
-type TExpressionHeaderAH struct { // authentication header
-	Nexthdr   Tinetservice // Next header protocol
-	Hdrlength uint8        // AH Header length
-	Reserved  uint8        // Reserved area 4-bits
-	Spi       uint32       // Security Parameter Index
-	Sequence  uint32       // Sequence number
-}
-
-// esp [ESP header field]
-type TExpressionHeaderESP struct { // encrypted security payload
-	Spi      uint32 // Security Parameter Index
-	Sequence uint32 // Sequence number
-}
-
-// comp [IPComp header field]
-type TExpressionHeaderIpcomp struct {
-	Nexthdr Tinetservice // Next header protocol
-	Flags   Tbitmask
-	Cpi     uint16 // Compression Parameter Index
-}
-
-// IPv6 extension header expressions refer to data from an IPv6 packet's extension headers.
-type TExpressionHeaderIpv6Ext struct { // IPv6 extension header
-}
-
-type Tctstate string
-type Tctdir string
-type Tctstatus string
-type Ttime string
-type Tctlabel string
+// Shared types amongst other expression/statements
 type Tnfproto string
+type Tprotocol string
+type Tpacketmark struct { // used only by 'meta mark' and 'ct mark'
+	// i.e. 'and 0x03 == 0x01', 'set 0xfffe xor 0x16', 'and 0x03 != 0x01', 'set 0xffffffe0 or 0x16'
+	// Eg1:
+	// 'ct mark and 0x0000ffff == 0x00001234' means
+	//	* Use operator 'and' with operand '0x0000ffff' of current packet
+	//	* Test result with operator '==' against operand '0x00001234'
+	OperatorPacket TToken // CTokenSet, CTokenAnd, CTokenOr, CTokenXor
+	OperandPacket  int    // usually hex
 
-// ct {state | direction | status | mark | expiration | helper | label | bytes | packets} {original | reply | {l3proto | protocol | saddr | daddr | proto-src | proto-dst | bytes | packets}}
-type TExpressionConntrack struct {
-	State      Tctstate // State of the connection
-	Direction  Tctdir   // Direction of the packet relative to the connection
-	Status     Tctstatus
-	Mark       Tpacketmark
-	Expiration Ttime
-	Helper     string   // Helper associated with the connection
-	Label      Tctlabel // Connection tracking label
-	L3proto    Tnfproto // Layer 3 protocol of the connection
-	Saddr      struct { // Source address of the connection for the given direction
-		Ipv4addr Tipv4addr
-		Ipv6addr Tipv6addr
-	}
-	Daddr struct { // Destination address of the connection for the given direction
-		Ipv4addr Tipv4addr
-		Ipv6addr Tipv6addr
-	}
-	Protocol Tinetproto // Layer 4 protocol of the connection for the given direction
-	ProtoSrc uint16     // Layer 4 protocol source for the given direction
-	ProtoDst uint16     // Layer 4 protocol destination for the given direction
-	Packets  uint64     // Packet count seen in the given direction or sum of original and reply
-	Bytes    uint64     // Byte count seen
+	OperatorResult TToken // CTokenEQ, CTokenNE, CTokenOr, CtokenAnd, CTokenXor
+	OperandResult  int    // usually hex
 }
+type Tinetservice uint32 // inet_service - ports
 
-// Statements represent actions to be performed. They can alter control flow (return, jump to a different chain, accept or drop the packet) or can perform actions, such as logging, rejecting a packet, etc.
-// Statements exist in two kinds. Terminal statements unconditionally terminate evaluation of the current rule, non-terminal statements either only conditionally or never terminate evaluation of the current rule, in other words,
-// they are passive from the ruleset evaluation perspective. There can be an arbitrary amount of non-terminal statements in a rule, but only a single terminal statement as the final statement.
-type TVerdict string
-
-const (
-	CVerdictAccept   TVerdict = "accept"
-	CVerdictDrop              = "drop"
-	CVerdictQueue             = "queue"
-	CVerdictContinue          = "continue"
-	CVerdictReturn            = "return"
-	CVerdictJump              = "jump"
-	CVerdictGoto              = "goto"
-)
-
-// {accept | drop | queue | continue | return}
-// {jump | goto} {chain}
-type TStatementVerdict struct {
-	Verdict TVerdict
-	Chain   string // only used by jump | goto
-}
-
-// see https://wiki.nftables.org/wiki-nftables/index.php/Quick_reference-nftables_in_10_minutes
-type TStatementLog struct {
-}
-type TStatementReject struct {
-}
-type TStatementCounter struct {
-}
-type TStatementMeta struct {
-}
-type TStatementLimit struct {
-}
-type TStatementNat struct {
-}
-type TStatementQueue struct {
-}
-
-type TUniqueTableName string // dotted table name such as "filter.ip", "nat.ip6" so that if there are "ip6" and "ip" family to table "filter", we can distinguish it
+// Nftables is just a container map of tables where the KEY is a unique
+// dotted namespace (family.tableName) for quicker lookup
+type TUniqueTableName string // dotted table name such as "ip.filter", "ip6.nat" so that if there are "ip6" and "ip" family to table "filter", we can distinguish it
 type Nftables struct {
-	Tables map[TUniqueTableName]TTable // key: table name (i.e. "filter.ip", "filter.ip6")
+	Tables map[TUniqueTableName]TTable // key: table name (i.e. "ip.filter", "ip6.filter")
+	//sync.RWMutex	// see https://blog.golang.org/go-maps-in-action in terms of concurrency issue with maps
 }

@@ -51,10 +51,10 @@ func TestStripComment(t *testing.T) {
 	}
 }
 
-func testPrintTextBlockRecursive(t *testing.T, tsPtr *TTextStatement, ti int, si int) {
+func testPrintTextBlockRecursive(t *testing.T, tsPtr *TTextStatement, si int) {
 	const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 	if tsPtr != nil {
-		outStr := fmt.Sprintf("%3d:(%16p:%16p)%s", si, tsPtr.Parent, tsPtr, tabs[:ti])
+		outStr := fmt.Sprintf("%3d:(%16p:%16p)%s", si, tsPtr.Parent, tsPtr, tabs[:tsPtr.Depth])
 		if len(tsPtr.Tokens) > 0 {
 			for _, t := range tsPtr.Tokens {
 				outStr += t + " "
@@ -65,20 +65,19 @@ func testPrintTextBlockRecursive(t *testing.T, tsPtr *TTextStatement, ti int, si
 		// Now dump TTextSTatement.SubStatement[]
 		if len(tsPtr.SubStatement) > 0 {
 			for _, ss := range tsPtr.SubStatement {
-				testPrintTextBlockRecursive(t, ss, ti+1, si)
+				testPrintTextBlockRecursive(t, ss, si)
 			}
 		}
 	}
 }
 
-func TestTextBlock(t *testing.T) {
-	s := `
+const testData = `
 # filter
 table ip filter {
 	chain input { # input chain
 		type filter hook input priority 0; policy drop;# sticky semi-colon and comment edge-case
-		ct state invalid counter drop comment "drop invalid packets"
-		ct state {established, related} counter accept comment "accept all connections related to connections made by us"
+		ct state {established, related} accept counter comment "expressions follwoing the {} block to associate it to THIS line"
+		ct state invalid counter drop comment "a line with ; in it"
 		iifname lo accept comment "accept loopback"
 		iifname != lo ip daddr 127.0.0.1/8 counter drop comment "don't worry, #comments cannot have double quotes inside it"
 		ip protocol icmp counter accept comment "comment has ' and # in it"
@@ -87,8 +86,32 @@ table ip filter {
 	}
 
 	chain output {
-		type filter hook output priority 0; policy accept;		counter comment "comment has a ' in it";
+		type filter hook output priority 0; policy accept;		counter comment "comment has a ' and ; in it";
 		;
+		# accept traffic originated from us
+		ct state { established, related} accept
+		# alternatively:
+		#ct state established accept
+		#ct state related accept
+
+		# accept any localhost traffic
+		iif lo accept
+
+		# meta tests
+		skuid != 2001-2005
+		meta skgid gt 2000
+		cpu {2-3, 5-7}
+		meta mark set 0xffffffc8 xor 0x18
+		l4proto != 233
+		meta nfproto {ipv4, ipv6}
+		meta length > 1000
+
+		tcp dport ssh counter accept
+
+		# count and drop any other traffic
+		counter drop
+
+		counter log drop
 	}
 
 	# using '\' to do continuations
@@ -97,6 +120,7 @@ table ip filter {
 			priority 0; policy drop;
 		counter comment "count dropped packets";
 		{some made up { nested statement } in one line}
+		ct state related,established accept
 	}
 
 	# all in one line, with ';' right before '}' and adding {} to fool the parser }
@@ -106,9 +130,10 @@ table ip filter {
 table ip6 filter {
 }`
 
-	tsList := MakeStatements(s)
+func TestTextBlock(t *testing.T) {
+	tsList := MakeStatements(testData)
 	for i, ts := range tsList {
-		testPrintTextBlockRecursive(t, ts, 0, i)
+		testPrintTextBlockRecursive(t, ts, i)
 	}
 }
 
@@ -116,8 +141,8 @@ func TestDeserializeFromFile(t *testing.T) {
 	path := "nft.rules"
 	nft := Read(path)
 	t.Logf("%+v", nft)
-	// assume the rules files only has two tables (ip and ip6)
-	if len(nft.Tables) != 2 {
+	// assume the rules files only has three tables (ip, ip6, and inet)
+	if len(nft.Tables) != 3 {
 		t.Fail()
 	}
 }

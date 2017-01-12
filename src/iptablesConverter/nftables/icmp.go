@@ -1,5 +1,9 @@
 package nftables
 
+import (
+	"log"
+)
+
 // Matches are clues used to access to certain packet infromation and reate filters according to them.
 // See https://wiki.nftables.org/wiki-nftables/index.php/Quick_reference-nftables_in_10_minutes
 /*
@@ -33,3 +37,33 @@ icmp match
 		icmp gateway { 1111, 222, 343 }
 
 */
+type TICMP struct {
+	//EQ      TEquate
+	//Verdict TStatementVerdict
+	Tokens []TToken
+}
+
+func parsePayloadIcmp(rule *TTextStatement) *TICMP {
+	retIcmp := new(TICMP)
+	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
+	if haveToken == false {
+		log.Panicf("Unable to find next token - %+v", rule)
+	}
+	if tokens[0] == CTokenMatchICMP {
+		retIcmp.Tokens = append(retIcmp.Tokens, tokens[0])
+		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if haveToken == false {
+			log.Panicf("Unable to find next token - %+v", rule)
+		}
+	}
+
+	switch tokens[0] {
+	default:
+		{
+			log.Panicf("Unhandled token '%v' for 'icmp' (in %+v)", tokens, rule)
+		}
+	}
+
+	log.Panicf("Not implemented: %+v", rule)
+	return nil
+}

@@ -31,11 +31,12 @@ type TTextStatement struct {
 	Tokens       []string          // tokenized line (you can do things like 'strings.Join(Tokens, " ")')
 	SubStatement []*TTextStatement // array of children blocks (i.e. 'table filter' has two children 'chain Input' and 'chain Output')
 	Parent       *TTextStatement   // Mainly used during custructions to walk in/out of '{}' blocks (See MakeStatements() method)
+	Depth        uint16            // mainly for debugging and printing, but can be used to determine siblings
 }
 
-const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
-
 // TODO: Use type TToken and CToken* for consistencies in the future
+
+const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 
 // Strips out comments from a line, use this before you tokenize a line
 func stripComment(line string) string {
@@ -58,7 +59,6 @@ func stripComment(line string) string {
 	//log.Printf("Parsing '%s' for comments..., TokenCount: %d\n", strings.Join(split, " "), len(split))
 	iHash := len(split)
 	for i, token := range split {
-		//log.Printf("\tCurrent Token: '%s'\n", token)
 		if strings.HasPrefix(token, "#") {
 			iHash = i
 			break
@@ -81,6 +81,104 @@ func splitWithKeyInPlace(s string, find string) []string {
 	}
 	return split
 }
+func splitNonWhitespaced(tokens []string) []string {
+	var retList []string
+	for _, t := range tokens {
+		// ignore any quoted string tokens
+		if strings.HasPrefix(t, "\"") || strings.HasPrefix(t, "'") {
+			retList = append(retList, t)
+			continue
+		}
+
+		sO := splitWithKeyInPlace(t, "{")
+		for _, sO1 := range sO {
+			sC := splitWithKeyInPlace(sO1, "}")
+			for _, sC1 := range sC {
+				sSC := splitWithKeyInPlace(sC1, ";")
+				for _, sSC1 := range sSC {
+					retList = append(retList, sSC1)
+				}
+			}
+		}
+	}
+
+	return retList
+}
+func splitAndRejoin(token string, find string, tokens []string, i int) []string {
+	retStrList := tokens
+	split := splitWithKeyInPlace(token, find)
+	tail := append(split, retStrList[i+1:]...)
+	retStrList = append(retStrList[:i], tail...)
+	if (logLevel > 1) && (len(tokens) != len(retStrList)) {
+		log.Printf("splitAndRejoin(Key='%s',Token='%s')\n\tsplit(%d):%+v\n\ttail(%d):%+v\n\tBefore:%+v(%2d)\n\t After:%+v(%2d)\n",
+			find, token, len(split), split, len(tail), tail, tokens, len(tokens), retStrList, len(retStrList))
+	}
+	return retStrList
+}
+
+// if any tokens that are unquoted has the delimiter, then join it
+// i.e. if tokens={"{", "a", ",", "b", ",", "c-d", ",", "e", "}"} (count=9), then
+// we want the "a,b,c-d,e" to be a single token if search key is ",", so that result is:
+// tokens={"{", "a,b,c-d,e", "}"} (count=3)
+func joinDelimited(tokens []string, key string) []string {
+	var retList []string
+	start := 0
+	stop := 0
+	foundKey := false
+	for i, t := range tokens {
+		// see if it has been appended (i.e. 'a,' instead of 'a' and ',') as well
+		// handles cases of ',' as standalone token, or ',a' and 'a,', and
+		// because it is already tokenized, by just checking prefix and suffix,
+		// we won't have issues of "'this string has a , in int'" but will
+		// able to treat ',"string,1"' and '"string,2",' where the key is
+		// at head or tail
+		isToken := t == key
+		hasPrefix := strings.HasPrefix(t, key)
+		hasSuffix := strings.HasSuffix(t, key)
+		if isToken || hasPrefix || hasSuffix {
+			foundKey = true
+			//log.Printf("\tFound %s at %d (in %+v)", t, i, tokens)
+			if isToken || hasSuffix {
+				// stop needs to be one after this
+				stop = i + 1
+			} else {
+				// if found on prefix, it's part of the token, so make stop==current (this token)
+				stop = i
+			}
+
+			// Q: Does it handle cases of 'a ,b, c'?
+			if start == 0 {
+				if isToken || hasPrefix {
+					// start needs to happen on previous token if key found on current or as prefix
+					start = i - 1
+					stop = i
+				} else {
+					// if occurances is at the suffix, make this one to be the start
+					start = i
+					stop = i + 1
+				}
+			}
+		}
+	}
+	if foundKey {
+		// join them all with no whitespace between, so it becomes a single expression/token
+		joined := strings.Join(tokens[start:stop+1], "")
+		tail := []string{joined}
+		tail = append(tail, tokens[stop+1:]...)
+		retList = append(tokens[:start], tail...)
+		if len(tokens) <= len(retList) {
+			log.Panicf("Programmer error: why did it not join? len(tokens)==%d should be > len(retList)==%d", len(tokens), len(retList))
+		}
+	} else {
+		retList = tokens
+	}
+	if (logLevel > 1) && foundKey {
+		log.Printf("joinDelimited(Key:'%s')\n\tRequest:%+v(%2d)\n\t Joined:%+v(%2d)",
+			key, tokens, len(tokens), retList, len(retList))
+	}
+	return retList
+}
+
 func splitAndAppend(s string, find string, tokens []string, tIndex int) []string {
 	var tokenizedList []string
 	if strings.Contains(s, find) {
@@ -146,36 +244,31 @@ func tokenizeLineByQuotedText(line string) []string {
 			}
 
 			if strings.Contains(token, "{") {
-				split := splitWithKeyInPlace(token, "{")
-				tail := append(split, retStrList[i+1:]...)
-				retStrList = append(retStrList[:i], tail...)
-				//log.Printf("Token='%s'\nsplit(%d):%+v\ntail(%d):%+v\nNewList(%d):%+v\n\n", token, len(split), split, len(tail), tail, len(retStrList), retStrList)
+				retStrList = splitAndRejoin(token, "{", retStrList, i)
 
-				// try again
+				// try again: because next line has been joined to current, dec index
 				i--
 				continue
 			}
 			if strings.Contains(token, "}") {
-				split := splitWithKeyInPlace(token, "}")
-				tail := append(split, retStrList[i+1:]...)
-				retStrList = append(retStrList[:i], tail...)
-				//log.Printf("Token='%s'\nsplit(%d):%+v\ntail(%d):%+v\nNewList(%d):%+v\n\n", token, len(split), split, len(tail), tail, len(retStrList), retStrList)
+				retStrList = splitAndRejoin(token, "}", retStrList, i)
 
-				// try again
+				// try again: because next line has been joined to current, dec index
 				i--
 				continue
 			}
 			if strings.Contains(token, ";") {
-				split := splitWithKeyInPlace(token, ";")
-				tail := append(split, retStrList[i+1:]...)
-				retStrList = append(retStrList[:i], tail...)
-				//log.Printf("Token='%s'\nsplit(%d):%+v\ntail(%d):%+v\nNewList(%d):%+v\n\n", token, len(split), split, len(tail), tail, len(retStrList), retStrList)
+				retStrList = splitAndRejoin(token, ";", retStrList, i)
 
-				// try again
+				// try again: because next line has been joined to current, dec index
 				i--
 				continue
 			}
 		}
+
+		// Now, make sure expressions such as 'a, b ,c - d, e,f' are treated as single expression 'a,b,c-d,e,f'
+		retStrList = joinDelimited(retStrList, ",")
+		retStrList = joinDelimited(retStrList, "-")
 		//log.Printf("\tDone tokenizing to %d tokens\n", len(retStrList))
 	}
 	return retStrList
@@ -262,7 +355,6 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 	}
 
 	// Now that comment has been stripped, join escaped lines
-
 	// By here, each lines have been stripped of comments which may have texts that may
 	// get misinterpreted (i.e. "#This line is not escaped because it is commented \")
 	// Join multi-lines that are escaped into single line
@@ -285,19 +377,43 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 
 		// now tokenize this line
 		tokens := tokenizeLineByQuotedText(lines[lineNum])
+		// split tokens that are not whitespaced (i.e. 'ct state {established,new} accept;'
+		// needs to split the '{', '}', and ';' into its own tokens
+		tokens = splitNonWhitespaced(tokens)
+
+		//log.Print(tokens)
 		if len(tokens) > 0 {
 			at := make([]string, 0)
-			for _, t := range tokens {
+			for ti, t := range tokens {
+				if t == "" {
+					continue
+				}
 				at = append(at, t)
+
 				// treat each encounter of ";" as newline
-				if t == ";" || t == "}" || t == "{" {
-					// new line
-					t := depthedStatement{tokens: at}
-					tokenizedLines = append(tokenizedLines, t)
-					at = make([]string, 0)
+				if (t == ";") || (t == "{") {
+					// new statement
+					if (len(at) > 0) && (at[0][0] != 0) {
+						t := depthedStatement{tokens: at}
+						tokenizedLines = append(tokenizedLines, t)
+						at = make([]string, 0)
+					}
+				}
+
+				// handle nested blocks which must associate to same expression,
+				// for example 'ct state { established, new, accepted } accept'
+				// needs to have the verdict 'accept' be associted to conntrack
+				// state expression
+				if t == "}" {
+					// new line _ONLY_ if no tokens follow, else we need it on same line
+					if ((ti + 1) >= len(tokens)) && (len(at) > 0) && (at[0][0] != 0) {
+						t := depthedStatement{tokens: at}
+						tokenizedLines = append(tokenizedLines, t)
+						at = make([]string, 0)
+					}
 				}
 			}
-			if len(at) > 0 {
+			if (len(at) > 0) && (at[0][0] != 0) {
 				t := depthedStatement{tokens: at}
 				tokenizedLines = append(tokenizedLines, t)
 				at = make([]string, 0)
@@ -307,22 +423,46 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 
 	// Now that escaped lines have been joined back, we need to next split any line which
 	// contains ';' into another line
-	indent := "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
-	indentIndex := 0
+	// Also, if there are any tokens after the '}', it needs to go under the same parent
+	// For example, 'ct state { established, accepted} accept', which the verdict 'accept'
+	// belongs to conntrack (ct) state
+	currentDepth := 0
 	for lineNum := 0; lineNum < len(tokenizedLines); lineNum++ {
 		tokens := tokenizedLines[lineNum].tokens
-		tokenizedLines[lineNum].depth = uint16(indentIndex)
+		if tokenizedLines[lineNum].depth == 0 {
+			// only set the depth if not yet set (see '}' logic of why)
+			tokenizedLines[lineNum].depth = uint16(currentDepth)
+		}
 
-		lineStatement := fmt.Sprintf("#%3d:%2d:%s", lineNum, tokenizedLines[lineNum].depth, indent[:indentIndex])
+		lineStatement := fmt.Sprintf("#%3d:%2d:%s", lineNum, tokenizedLines[lineNum].depth, tabs[:tokenizedLines[lineNum].depth])
 		for iToken := 0; iToken < len(tokens); iToken++ {
 			token := tokens[iToken]
 			if token == "{" {
-				indentIndex++
+				currentDepth++
+				lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 			}
 			if token == "}" {
-				indentIndex--
-				if indentIndex < 0 {
-					indentIndex = 0
+				currentDepth--
+				if currentDepth < 0 {
+					log.Panicf("Encountered mismatched number of '{' for each '}' block")
+				}
+
+				// do not reduce indentation if there are any expression that follows '}', and also split them up
+				if (iToken + 1) < len(tokens) {
+					// split trailing tokens, but into same depth
+					tailTokens := tokens[iToken+1:]
+					tokens = tokens[:iToken+1] // include current token '}'
+					tokenizedLines[lineNum].tokens = tokens
+
+					// preset the depth so that it'll be in same depth/indentations
+					tail := []depthedStatement{
+						depthedStatement{depth: uint16(currentDepth + 1), tokens: tailTokens},
+					}
+					tail = append(tail, tokenizedLines[lineNum+1:]...)
+					tokenizedLines = append(tokenizedLines[:lineNum+1], tail...) // include current line (that has been stripped)
+
+					lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "' - split @ Line=" + strconv.Itoa(lineNum) + ", Depth=" + strconv.Itoa(int(tokenizedLines[lineNum+1].depth)) + ")"
+					break // opt out of inner loop so we can start on next line of what we've appended
 				}
 			}
 			if token == "" {
@@ -337,14 +477,18 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 				lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 				continue
 			}
-			if strings.Contains(token, ";") {
-				// found one, so do some insertion
-				tokenizedLines[lineNum].tokens = splitAndAppend(token, ";", tokens, iToken)
-				token = tokens[iToken]
-			}
+			//if strings.Contains(token, ";") {
+			//	lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
+			//	// found one, so do some insertion
+			//	tokenizedLines[lineNum].tokens = splitAndAppend(token, ";", tokens, iToken)
+			//	token = tokens[iToken]
+			//}
 			lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
-		}
+		} // for tokens
 		//log.Print(lineStatement)
+	} // for tokenizedLines
+	if currentDepth != 0 {
+		log.Panicf("Missing closing '}', current depth=%d", currentDepth)
 	}
 
 	return tokenizedLines
@@ -408,73 +552,76 @@ func MakeStatements(textBody string) []*TTextStatement {
 	var retStatements []*TTextStatement
 	var iLine uint16 = 0
 	for ; iLine < uint16(len(tokenizedLines)); iLine++ {
-		// line number returned will only be based on new major block, i.e. if a block has two tables:
-		//	table ip filter{...}
-		//	table ip6 filter{...}
-		// it will only return from recursions at root, so it's safe to create new blocks each time here
-		//log.Printf("\n=== Block at line %3d (depth: %d) [%+v]", iLine, tokenizedLines[iLine].depth, tokenizedLines[iLine])
-		pParent := new(TTextStatement) // pParent.Parent is ALWAYS nil
-		retStatements = append(retStatements, pParent)
-		iLine, _ = makeStatementRecursive(tokenizedLines, iLine, 0, pParent) // honor the line number it returns back to skip where needed (i.e. when '}' is encountered, it walked inside recursively)
+		if (len(tokenizedLines[iLine].tokens) >= 1) && (tokenizedLines[iLine].tokens[0] != "") {
+			// line number returned will only be based on new major block, i.e. if a block has two tables:
+			//	table ip filter{...}
+			//	table ip6 filter{...}
+			// it will only return from recursions at root, so it's safe to create new blocks each time here
+			//log.Printf("\n=== Block at line %3d (depth: %d) TokenCount:%d-[%+v]", iLine, tokenizedLines[iLine].depth, len(tokenizedLines[iLine].tokens), tokenizedLines[iLine])
+			pParent := new(TTextStatement) // pParent.Parent is ALWAYS nil
+			retStatements = append(retStatements, pParent)
+
+			// recurse into the statements for this block and honor the new line number it returns back
+			iLine, _ = makeStatementRecursive(tokenizedLines, iLine, 0, pParent) // honor the line number it returns back to skip where needed (i.e. when '}' is encountered, it walked inside recursively)
+			iLine--                                                              // because makeStatementRecursive() places to NEXT line, and the for{} loop incs, need to dec here
+		}
 	}
 	return retStatements
 }
 
-func appendNewBlockStatement(pParent *TTextStatement) *TTextStatement {
+func appendNewBlockStatement(pParent *TTextStatement, nextLineIndexRO uint16, linesRO []depthedStatement) *TTextStatement {
+	if pParent == nil {
+		log.Panicf("Parent pointer must not be nil")
+	}
+	if nextLineIndexRO == 0 {
+		log.Panicf("In order for next index to be 0, current would mean it was -1, which is an invalid line number")
+	}
+
+	if int(nextLineIndexRO) >= len(linesRO) {
+		// there are no child to be created if it is the last line
+		return nil
+	}
+	//parentDepth := pParent.Depth
+	//prevDepth := linesRO[nextLineIndexRO-1].depth
+	nextDepth := linesRO[nextLineIndexRO].depth
 	newChild := new(TTextStatement)
+	newChild.Depth = nextDepth
 	newChild.Parent = pParent
 	pParent.SubStatement = append(pParent.SubStatement, newChild)
+
+	//log.Printf("#Line: %2d - Parent.Depth=%d, previous Depth=%d, next Depth=%d - %+v", nextLineIndexRO, parentDepth, prevDepth, nextDepth, linesRO[nextLineIndexRO])
 	return newChild
 }
 
-func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, tokenIndexRO uint16, pParentRO *TTextStatement) (uint16, uint16) {
-	if pParentRO == nil {
+func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, tokenIndexRO uint16, pCurrentBlockRO *TTextStatement) (uint16, uint16) {
+	if pCurrentBlockRO == nil {
 		log.Panicf("Programmer error: p should never be nil! - lineIndex=%d, tokenIndex=%d", lineIndexRO, tokenIndexRO)
 	}
 	if lineIndexRO >= uint16(len(linesRO)) {
-		log.Panicf("L%2d:T%2d(S:%2d) Line Index >= %d",
-			lineIndexRO,
-			tokenIndexRO,
-			len(pParentRO.SubStatement),
-			len(linesRO))
+		log.Panicf("L%2d:T%2d(S:%2d) Line Index >= %d", lineIndexRO, tokenIndexRO, len(pCurrentBlockRO.SubStatement), len(linesRO))
 		return lineIndexRO, tokenIndexRO
 	}
 	if tokenIndexRO >= uint16(len(linesRO[lineIndexRO].tokens)) {
-		log.Panicf("L%2d:T%2d(S:%2d) Token Index >= %d",
-			lineIndexRO,
-			tokenIndexRO,
-			len(pParentRO.SubStatement),
-			len(linesRO[lineIndexRO].tokens))
+		log.Panicf("L%2d:T%2d(S:%2d) Token Index >= %d", lineIndexRO, tokenIndexRO, len(pCurrentBlockRO.SubStatement), len(linesRO[lineIndexRO].tokens))
 		return lineIndexRO, tokenIndexRO
 	}
 
 	// TODO: Clean up this in future, no need to copy, all params are ref-copied anyways
 	iLineIndex := lineIndexRO
 	iTokenIndex := tokenIndexRO
+	pCurrentBlock := pCurrentBlockRO
 
 	// walk through statements based on depth
 	for {
-		// Create new SubStatement and append it to the parent before we begin working with it
-		pCurrentBlock := appendNewBlockStatement(pParentRO)
+		logMsg := fmt.Sprintf("#L(%3d):T(%2d)[%12p](P:%12p) D(%2d)#%s", iLineIndex, len(linesRO[iLineIndex].tokens), pCurrentBlock, pCurrentBlock.Parent, linesRO[iLineIndex].depth, tabs[:linesRO[iLineIndex].depth])
 
-		logMsg := fmt.Sprintf("L%2d:T%2d[%12p](P:%12p,S:%2d) %2d %s",
-			lineIndexRO,
-			tokenIndexRO,
-			pCurrentBlock,
-			pParentRO,
-			len(pParentRO.SubStatement),
-			linesRO[lineIndexRO].depth,
-			tabs[:linesRO[lineIndexRO].depth])
-
-		//log.Printf("\n\n### L%2d:T%2d[%12p]>>> Processing '%+v'", lineIndexRO, tokenIndexRO, pCurrentBlock, linesRO[iLineIndex])
-		//log.Printf("# %2d:%2d %s%+v", iLineIndex, linesRO[iLineIndex].depth, tabs[:linesRO[iLineIndex].depth], linesRO[iLineIndex])
 		// walk through the tokens
-		for ; iTokenIndex < uint16(len(linesRO[iLineIndex].tokens)); iTokenIndex++ {
+		for ; (iTokenIndex < uint16(len(linesRO[iLineIndex].tokens))) && (int(iLineIndex) < len(linesRO)); iTokenIndex++ {
 			// whether the token is '{', '}', or ';', record the token before we proceed
 			token := linesRO[iLineIndex].tokens[iTokenIndex]
 			pCurrentBlock.Tokens = append(pCurrentBlock.Tokens, token)
 
-			logMsg += "'" + token + "',"
+			logMsg += fmt.Sprintf("%s:%d ", token, iTokenIndex)
 
 			switch token {
 			case "{":
@@ -486,42 +633,61 @@ func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, toke
 						iLineIndex++
 						iTokenIndex = 0
 					}
+					if logLevel > 0 {
+						log.Print(logMsg)
+					}
+					logMsg = ""
 
 					// push: current block is the parent
-					//log.Printf("\t>>> Token='%s' - Preparing for next set '%+v'", token, linesRO[iLineIndex])
-					iLineIndex, iTokenIndex = makeStatementRecursive(linesRO, iLineIndex, iTokenIndex, pCurrentBlock)
-
-					// the "}" will return new LineIndex and TokenIndex - by the time '}' is encountered,
-					// it may have proceeded several tokens (and lines) due to nested blocks
-					continue // see what we have as next token
+					newChildBlock := appendNewBlockStatement(pCurrentBlock, iLineIndex, linesRO) // current block will be its parent
+					iLineIndex, iTokenIndex = makeStatementRecursive(linesRO, iLineIndex, iTokenIndex, newChildBlock)
+					continue // see what we have as next token (or wheter to move to next line)
 				}
 
 			case "}":
 				{
-					//log.Printf("\t<<< Token='%s' DONE - returning iLine=%d, iToken=%d (Next: '%+v')\n\n", token, iLineIndex, iTokenIndex, linesRO[iLineIndex])
 					// pop (return to caller of matching "{" with current LineIndex and TokenIndex)
-					// let the calling method continue on from where it took off (next token)
+					// let the calling method continue on from where it took off (next token and line)
+					if logLevel > 0 {
+						log.Print(logMsg)
+					}
+					logMsg = ""
 					return iLineIndex, iTokenIndex
 				}
 
 			case ";":
 				{
 					// only create next block if some token follows the ';'
-					if (iTokenIndex + 1) < uint16(len(linesRO[iLineIndex].tokens)) {
+					if int(iTokenIndex+1) < len(linesRO[iLineIndex].tokens) {
 						// for token ";" it is same parent (append it to Parent), just new statement/line
-						pCurrentBlock = appendNewBlockStatement(pParentRO)
+						pCurrentBlock = appendNewBlockStatement(pCurrentBlock.Parent, iLineIndex+1, linesRO)
 					}
 				}
 			} // switch toke
 		} // for iTokenIndex
-		//log.Print(logMsg)
-
-		// see if next/new statement belongs to this block
-		if (iLineIndex+1 >= uint16(len(linesRO))) || (linesRO[iLineIndex+1].depth <= 0) {
-			break
+		if (logLevel > 0) && (logMsg != "") {
+			log.Print(logMsg)
 		}
+
+		// next line
 		iLineIndex++
 		iTokenIndex = 0
+		var d uint16 = 0
+		if iLineIndex < uint16(len(linesRO)) {
+			d = linesRO[iLineIndex].depth
+		}
+		//log.Printf("Next: Line=%d (out of %d), Depth=%d", iLineIndex, len(linesRO), d)
+		// if next block is of depth 0, we're done - see if next/new statement belongs to this block
+		if (iLineIndex >= uint16(len(linesRO))) || (d <= 0) {
+			break
+		}
+
+		// Create new SubStatement and append it to the parent before we begin working with it
+		pCurrentBlock = appendNewBlockStatement(pCurrentBlock.Parent, iLineIndex, linesRO)
+		if pCurrentBlock == nil {
+			// nothing in next line, we're done...
+			break
+		}
 	} // for depth
 
 	// if here, we're done with all tokens, so we can proceed to next line

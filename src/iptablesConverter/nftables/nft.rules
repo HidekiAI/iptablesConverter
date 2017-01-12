@@ -1,41 +1,106 @@
-# IPv4 filtering
-table Filter {
-        chain Input {
-                 type filter hook input priority 0;
-                 ct state established accept
-                 ct state related accept
-                 iif lo accept
-                 tcp dport ssh counter accept
-                 counter log drop
-        }
+# fw.basic
+table ip filter {
+	chain input {
+		type filter hook input priority 0; policy drop ;
 
-        chain Output {
-                 type filter hook output priority 0;
-                 ct state established accept
-                 ct state related accept
-                 oif lo accept
-                 ct state new counter accept
-        }
+		# accept traffic originated from us
+		ct state { established, related} accept
+		# alternatively:
+		#ct state established accept
+		#ct state related accept
+
+		# accept any localhost traffic
+		iif lo accept
+
+		# meta tests
+		skuid != 2001-2005
+		meta skgid gt 2000
+		cpu {2-3, 5-7}
+		meta mark set 0xffffffc8 xor 0x18
+		l4proto != 233
+		meta nfproto {ipv4, ipv6}
+		meta length > 1000
+
+		tcp dport ssh counter accept
+
+		# count and drop any other traffic
+		counter drop
+
+		counter log drop
+	}
+
+	chain Output {
+		type filter hook output priority 0; policy accept
+
+		ct state related,established accept
+		ct state related accept
+
+		oif lo accept
+
+		# meta test
+		meta cpu != 1-2
+
+		# block all out except for lo
+		oif != {"eth0", "eth1", "tun0" } accept
+
+		ct state new counter accept
+	}
 }
 
-#IPv6 filtering
-table ip6 Filter {
-        chain Input {
-                 type filter hook input priority 0;
-                 ct state established accept
-                 ct state related accept
-                 iif lo accept
-                 tcp dport ssh counter accept
-                 icmpv6 type { nd-neighbor-solicit, echo-request, nd-router-advert, nd-neighbor-advert } accept
-                 counter log drop
-        }
+# fw6.basic
+table ip6 filter {
+	chain input {
+		type filter hook input priority 0; policy drop ;
 
-        chain Output {
-                 type filter hook output priority 0;
-                 ct state established accept
-                 ct state related accept
-                 oif lo accept
-                 ct state new counter accept
-        }
+		# accept any localhost traffic
+		iif lo accept
 
+		# count and drop any other traffic
+		counter drop
+		#ct state established accept
+		#ct state related accept
+		# accept traffic originated from us
+		ct state established,related accept
+
+		# accept neighbour discovery otherwise connectivity breaks
+		icmpv6 type { nd-neighbor-solicit, echo-request, nd-router-advert, nd-neighbor-advert } accept
+
+		# accept any localhost traffic
+		iif lo accept
+		tcp dport ssh counter accept
+
+		counter log drop
+	}
+
+	chain Output {
+		type filter hook output priority 0;
+
+		ct state established accept
+		ct state related accept
+
+		oif lo accept
+
+		ct state new counter accept
+	}
+}
+
+
+# fw.inet.basic
+# The inet table is available from Linux kernel 3.14 and allow to make an IPv4 and IPv6 table. There is mostly a single change compared to previous ruleset which is the inet keyword.
+table inet filter {
+	chain input {
+		type filter hook input priority 0;
+
+		# accept any localhost traffic
+		iif lo accept
+
+		# accept traffic originated from us
+		ct state established,related accept
+
+		# accept neighbour discovery otherwise connectivity breaks
+		ip6 nexthdr icmpv6 icmpv6 type { nd-neighbor-solicit, echo-request, nd-router-advert, nd-neighbor-advert } accept
+
+		# count and drop any other traffic
+		counter drop
+	}
 }

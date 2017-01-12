@@ -1,5 +1,9 @@
 package nftables
 
+import (
+	"log"
+)
+
 // Matches are clues used to access to certain packet infromation and reate filters according to them.
 // See https://wiki.nftables.org/wiki-nftables/index.php/Quick_reference-nftables_in_10_minutes
 /*
@@ -73,3 +77,49 @@ Ip: ip match
 		ip hdrlength 0
 		ip hdrlength 15
 */
+
+// ip [IPv4 header field]
+type Tinetproto string // inet_proto
+type TExpressionHeaderIpv4 struct {
+	Version   uint8      // IP header version 4-bits
+	Hdrlength uint8      // IP header length including options 4-bits
+	Dscp      uint8      // Differentiated Services Code Point 6-bits
+	Ecn       uint8      // Explicit Congestion Notification 2-bits
+	Length    uint16     // Total packet length
+	Id        uint16     // IP ID
+	FragOff   uint16     // Fragment offset
+	Ttl       uint8      // 8-bits
+	Protocol  Tinetproto // inet_proto - Upper layer protocol
+	Checksum  uint16     // IP header checksum
+	Saddr     Tipv4addr  // source address ipv4_addr
+	Daddr     Tipv4addr  // Destination address ipv4_addr
+
+	//EQ      TEquate
+	//Verdict TStatementVerdict
+	Tokens []TToken
+}
+
+func parsePayloadIp(rule *TTextStatement) *TExpressionHeaderIpv4 {
+	retIp := new(TExpressionHeaderIpv4)
+	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
+	if haveToken == false {
+		log.Panicf("Unable to find next token - %+v", rule)
+	}
+	if tokens[0] == CTokenMatchIP {
+		retIp.Tokens = append(retIp.Tokens, tokens[0])
+		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if haveToken == false {
+			log.Panicf("Unable to find next token - %+v", rule)
+		}
+	}
+
+	switch tokens[0] {
+	default:
+		{
+			log.Panicf("Unhandled token '%v' for 'ip' (in %+v)", tokens, rule)
+		}
+	}
+
+	log.Panicf("Not implemented: %+v", rule)
+	return nil
+}

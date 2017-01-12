@@ -1,5 +1,9 @@
 package nftables
 
+import (
+	"log"
+)
+
 // Matches are clues used to access to certain packet infromation and reate filters according to them.
 // See https://wiki.nftables.org/wiki-nftables/index.php/Quick_reference-nftables_in_10_minutes
 /*
@@ -27,3 +31,33 @@ mh match
 		mh checksum { 33, 55, 67, 88}
 
 */
+type TMH struct {
+	//EQ      TEquate
+	//Verdict TStatementVerdict
+	Tokens []TToken
+}
+
+func parsePayloadMh(rule *TTextStatement) *TMH {
+	retMH := new(TMH)
+	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
+	if haveToken == false {
+		log.Panicf("Unable to find next token - %+v", rule)
+	}
+	if tokens[0] == CTokenMatchMH {
+		retMH.Tokens = append(retMH.Tokens, tokens[0])
+		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if haveToken == false {
+			log.Panicf("Unable to find next token - %+v", rule)
+		}
+	}
+
+	switch tokens[0] {
+	default:
+		{
+			log.Panicf("Unhandled token '%v' for 'mh' (mobility header) (in %+v)", tokens, rule)
+		}
+	}
+
+	log.Panicf("Not implemented: %+v", rule)
+	return nil
+}
