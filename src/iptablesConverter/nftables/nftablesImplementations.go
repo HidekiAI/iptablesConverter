@@ -1,9 +1,12 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -75,9 +78,9 @@ func (pThisStatement *TTextStatement) deserializeRecursive(nft *Nftables, pCurre
 			if pCurrentChain == nil {
 				log.Panicf("Unable to deal with nil Chain for tokens:\n\t%+v (len: %d)\n\n", pThisStatement.Tokens, len(pThisStatement.Tokens))
 			}
-			added := pCurrentChain.ChainRule(CRuleCommandAdd, pThisStatement)
-			if added == false {
-				log.Panicf("Unable to add chain rule '%+v'", pThisStatement.Tokens)
+			err := pCurrentChain.ChainRule(CRuleCommandAdd, pThisStatement)
+			if err != nil {
+				log.Panicf("Unable to add chain rule '%+v' - %+v", pThisStatement.Tokens, err)
 			}
 		}
 	}
@@ -150,16 +153,13 @@ func (pThisStatement *TTextStatement) deserialize(nft *Nftables) {
 			log.Panicf("Unable to deal with nil Chain")
 		}
 		if logLevel > 0 {
-			log.Printf("\t\tChain '%s' (of Table '%s') has %d chain rules", chainName, pCurrentTable.Name, len(currChain.SubStatement))
+			log.Printf("\tChain '%s' (of Table '%s') has %d chain rules", chainName, pCurrentTable.Name, len(currChain.SubStatement))
 		}
 		for its, ts := range currChain.SubStatement {
-			haveToken, _, tokens, currentRule := getNextToken(ts, 0, 1)
-			if haveToken == false {
+			err, _, tokens, currentRule := getNextToken(ts, 0, 1)
+			if err != nil {
 				//log.Panicf("Unable to find next token - %+v at index=%d", ts, its)
 				continue
-			}
-			if logLevel > 0 {
-				log.Printf("\t\t\t%2d:%s%+v(Child Count:%d)\t\t\t\tcurrentRule=%12p:ts=%12p", its, tabs[:ts.Depth], ts.Tokens, len(ts.SubStatement), currentRule, ts)
 			}
 			// first, parse the tokens - NOTE that what we are interested in are
 			// statements that have AT LEAST 2 tokens.  Statements which only
@@ -169,14 +169,21 @@ func (pThisStatement *TTextStatement) deserialize(nft *Nftables) {
 			if len(ts.Tokens) == 0 {
 				continue
 			}
-			if ts.Depth != currChain.Depth {
+			if currentRule == nil {
+				//log.Panicf("There are no next rules to be processed")
+				currentRule = ts
+			}
+			if ts.Depth != (currChain.Depth + 1) {
 				// all sub statements that are of deeper depths *should have* been processed already
+				if logLevel > 2 {
+					log.Printf("\t\t# Skipping %+v: Found Depth(%d), Current Depth(%d), found depth needs to be %d", tokens, ts.Depth, currChain.Depth, currChain.Depth+1)
+				}
 				continue
 			}
-			if currentRule == nil {
-				log.Panicf("There are no next rules to be processed")
-			}
 
+			if logLevel > 0 {
+				log.Printf("\t\t%2d:%s%+v(Child Count:%d) - Depth:%d, ChainDepth:%d, NextDepth:%d", its, tabs[:ts.Depth], ts.Tokens, len(ts.SubStatement), ts.Depth, currChain.Depth, currentRule.Depth)
+			}
 			switch tokens[0] {
 			case CTokenTable:
 				log.Panicf("Cannot have 'table' withinside 'chain' (%+v) %12p", ts, currentRule)
@@ -190,9 +197,9 @@ func (pThisStatement *TTextStatement) deserialize(nft *Nftables) {
 
 			default:
 				// if it is not 'table' or 'chain' tokens, it must be rules to the TChain
-				added := pCurrentChain.ChainRule(CRuleCommandAdd, currentRule)
-				if added == false {
-					log.Panicf("Unable to add chain rule '%+v'", ts.Tokens)
+				err := pCurrentChain.ChainRule(CRuleCommandAdd, ts)
+				if err != nil {
+					log.Panicf("Unable to add chain rule '%+v' - %+v", ts.Tokens, err)
 				}
 			}
 		} // ts
@@ -210,82 +217,132 @@ func stripRule(slist []string) []TToken {
 	return sr
 }
 
-// Ret parm1[bool] : true if next token found
+// Ret parm1[err] : nil if next token found
 // Ret parm2[uint16] : next token index (relative to next TTextStatement)
 // Ret parm3[[]TToken] : if parm1==true, the token that was found (array size based on expectedTokens)
 // Ret parm4[*TTextStatement] : next statement to reference (see next token index parm2)
-func getNextToken(rule *TTextStatement, iTokenIndex uint16, expectedTokens uint16) (bool, uint16, []TToken, *TTextStatement) {
-	haveNextToken := false
+// TODO: Refactor to reorder the return order of priority: []TToken, uint16, *TTextStatement, error
+func getNextToken(rule *TTextStatement, iTokenIndex uint16, expectedTokens uint16) (error, uint16, []TToken, *TTextStatement) {
+	var err error = nil
+	currentRule := rule
+	nextIndex := iTokenIndex
+	var retTokenList []TToken = []TToken{}
+	tokens := retTokenList
+	caller := ""
+	//fpcs := make([]uintptr, 1)
+	//cn := runtime.Callers(3, fpcs)
+	//if cn != 0 {
+	//	fun := runtime.FuncForPC(fpcs[0] - 1)
+	//	if fun != nil {
+	//		caller = fun.Name()
+	//	}
+	//}
+	if _, f, ln, ok := runtime.Caller(1); ok {
+		_, fn := filepath.Split(f)
+		caller = fmt.Sprintf("%s:%d", fn, ln)
+	}
+
 	if rule == nil {
 		//log.Panicf("Tokens cannot be extracted from rule==nil")
-		return false, 0, nil, nil
+		err = fmt.Errorf("%s:Rules passed is nil, cannot extract tokens", caller)
+	} else {
+		tokens = stripRule(currentRule.Tokens)
+		if len(tokens) == 0 || expectedTokens == 0 {
+			err = fmt.Errorf("%s:There are no tokens found for the rule provided", caller)
+		} else if iTokenIndex > uint16(len(tokens)) {
+			err = fmt.Errorf("%s:Requested token Index(%d) is greater then token count(%d)", caller, iTokenIndex, len(tokens))
+		}
 	}
-	currentRule := rule
-	tokens := stripRule(currentRule.Tokens)
-	if len(tokens) == 0 || expectedTokens == 0 {
-		return false, 0, nil, nil
-	}
-	// pull as much tokens we can (up to expectedTokens count)
-	var nextIndex uint16 = iTokenIndex
-	var retTokenList []TToken = []TToken{}
-	for i := iTokenIndex; int(i) < len(tokens) && i < expectedTokens; i++ {
-		retTokenList = append(retTokenList, tokens[i])
-		nextIndex = uint16(i)
-	}
+	if err == nil {
+		// pull as much tokens we can (up to expectedTokens count)
+		for i := iTokenIndex; int(i) < len(tokens) && i < (iTokenIndex+expectedTokens); i++ {
+			retTokenList = append(retTokenList, tokens[i])
+			nextIndex = uint16(i)
+		}
 
-	// first try the ideal case where iTokenIndex is in range and there is next valid index
-	if len(tokens) < int(expectedTokens) {
-		// cannot find next token, see if there are any children
-		tokens = []TToken{}
-		nextIndex = 0
-		currentRule = nil
-		if (rule.SubStatement != nil) && (len(rule.SubStatement) > 0) {
-			// assume that every statement has AT LEAST ONE token, so no take the first sub-statement
-			currentRule = rule.SubStatement[0]
-			tokens = stripRule(currentRule.Tokens)
-			for i := iTokenIndex; int(i) < len(tokens) && i < expectedTokens; i++ {
-				retTokenList = append(retTokenList, tokens[i])
-				nextIndex = uint16(i)
+		// first try the ideal case where iTokenIndex is in range and there is next valid index
+		if len(tokens) < int(expectedTokens) {
+			// cannot find next token, see if there are any children
+			tokens = []TToken{}
+			nextIndex = 0
+			currentRule = nil
+			if (rule.SubStatement != nil) && (len(rule.SubStatement) > 0) {
+				// assume that every statement has AT LEAST ONE token, so no take the first sub-statement
+				currentRule = rule.SubStatement[0]
+				tokens = stripRule(currentRule.Tokens)
+				for i := iTokenIndex; int(i) < len(tokens) && i < expectedTokens; i++ {
+					retTokenList = append(retTokenList, tokens[i])
+					nextIndex = uint16(i)
+				}
 			}
 		}
-	}
 
-	// determine next index
-	if int(iTokenIndex+1) < len(tokens) {
-		nextIndex = iTokenIndex + 1
-	} else {
-		// there is no next on current statement, so see if there are any children
-		nextIndex = 0
-		currentRule = nil
-		if (rule.SubStatement != nil) && (len(rule.SubStatement) > 0) {
-			// assume that every statement has AT LEAST ONE token, so no take the first sub-statement
-			currentRule = rule.SubStatement[0]
+		// determine next index
+		if int(iTokenIndex+1) < len(tokens) {
+			nextIndex = iTokenIndex + 1
+		} else {
+			// there is no next on current statement, so see if there are any children
+			nextIndex = 0
+			currentRule = nil
+			if (rule.SubStatement != nil) && (len(rule.SubStatement) > 0) {
+				// assume that every statement has AT LEAST ONE token, so no take the first sub-statement
+				currentRule = rule.SubStatement[0]
+			}
 		}
-	}
-	// special case, where parent has a sibling with depth that is deeper than current
-	if currentRule == nil {
-		if rule.Parent != nil && rule.Parent.Parent != nil {
-			for is, s := range rule.Parent.Parent.SubStatement {
-				if s == rule.Parent {
-					if len(rule.Parent.Parent.SubStatement) > is+1 {
-						n := rule.Parent.Parent.SubStatement[is+1]
-						if rule.Depth == n.Depth {
-							// we've found deeper depth than current, we can treat it as a child
-							currentRule = n
-							nextIndex = 0
+		// special case, where parent has a sibling with depth that is deeper than current
+		if currentRule == nil {
+			if rule.Parent != nil && rule.Parent.Parent != nil {
+				for is, s := range rule.Parent.Parent.SubStatement {
+					if s == rule.Parent {
+						if len(rule.Parent.Parent.SubStatement) > is+1 {
+							n := rule.Parent.Parent.SubStatement[is+1]
+							if rule.Depth == n.Depth {
+								// we've found deeper depth than current, we can treat it as a child
+								currentRule = n
+								nextIndex = 0
+							}
 						}
+						break
 					}
-					break
 				}
 			}
 		}
 	}
-	haveNextToken = len(retTokenList) == int(expectedTokens)
 
-	if logLevel > 2 {
-		log.Printf("\tRequest:%d - HaveNextToken:%v, nextIndex:%d, next Token:'%v', Rule:%v", iTokenIndex, haveNextToken, nextIndex, tokens, currentRule)
+	// fill in err if not already filled in
+	if err == nil {
+		if len(retTokenList) == 0 {
+			err = fmt.Errorf("%s:There are no tokens", caller)
+		} else if uint16(len(retTokenList)) != expectedTokens {
+			err = fmt.Errorf("%s:Requested %d tokens, but only were able to extract %d", caller, expectedTokens, len(retTokenList))
+		}
 	}
-	return haveNextToken, nextIndex, retTokenList, currentRule
+	if currentRule == nil {
+		// max uint16: 0xFFff
+		nextIndex = 0xFFff
+	}
+	if logLevel > 2 {
+		var t []string
+		d := -1
+		cd := -1
+		var pt []string
+		if rule != nil {
+			t = rule.Tokens
+			d = int(rule.Depth)
+			if rule.Parent != nil {
+				pt = rule.Parent.Tokens
+			}
+		}
+		sNextIndex := strconv.Itoa(int(nextIndex))
+		if currentRule != nil {
+			cd = int(currentRule.Depth)
+		} else {
+			sNextIndex = "(none)"
+		}
+		log.Printf("\t\t\t\t[%s]Depth: %d - Request Index:%d, Count:%d - Error:'%+v', nextIndex:%s, next Token:'%v', Rule:%+v (Depth:%+v), Parent:(%v)",
+			caller, d, iTokenIndex, expectedTokens, err, sNextIndex, retTokenList, t, cd, pt)
+	}
+	return err, nextIndex, retTokenList, currentRule
 }
 
 func parseEquates(t TToken) (bool, TEquate) {
@@ -316,7 +373,6 @@ func parseEquates(t TToken) (bool, TEquate) {
 	case CTokeneq:
 		// do nothing, it is default equates
 	}
-
 	return isEq, e
 }
 
@@ -339,6 +395,11 @@ func parseEquates(t TToken) (bool, TEquate) {
 func parseBitwiseMark(tokens []TToken) (int, Tpacketmark) {
 	retMark := Tpacketmark{}
 	skipCount := 0
+
+	if logLevel > 2 {
+		log.Printf("\t#Parsing '%+v' for Bitwise 'mark'", tokens)
+	}
+
 	if len(tokens) >= 4 {
 		isNum, n, isHex := parseNumber(string(tokens[1]))
 		if isNum == false || isHex == false {
@@ -363,6 +424,10 @@ func parseBitwiseMark(tokens []TToken) (int, Tpacketmark) {
 		retMark.OperandResult = n // operand against the result
 		skipCount = 1
 	}
+	if logLevel > 2 {
+		log.Printf("\t\t#Bitwise 'mark' result: '%+v' (skip count: %d tokens)", retMark, skipCount)
+	}
+
 	return skipCount, retMark
 }
 
@@ -372,28 +437,36 @@ func parseBitwiseMark(tokens []TToken) (int, Tpacketmark) {
 func tokenToInt(token TToken) (bool, [][2]int) {
 	ret := [][2]int{}
 	isNumber := false
+	if logLevel > 2 {
+		log.Printf("\t# Parsing '%+v' to be converted to integers", token)
+	}
+
 	// if it contains '-', it's ranged, if it contains ',' then it's series
-	sl := strings.Split(string(token), ",")
-	for _, s := range sl {
-		var minmax [2]int
-		mm := strings.Split(s, "-")
-		isNum, n, isHex := parseNumber(mm[0])
+	tl := parseCommaSeparated(token)
+	for _, t := range tl {
+		minmax := [2]int{-1, -1} // -1 means unused, this differs from hex 0xFFff which is not 0xFFFFffff
+		isNum, n, isHex := parseNumber(string(t[0]))
 		if isNum || isHex {
 			isNumber = true
 			minmax[0] = n
 		} else {
-			// no need to proceed further if it's NaN
+			// no need to proceed further if even ONE of the list are NaN (i.e. '{0, sudo, 5-10}')
 			return false, ret
 		}
-
-		if len(mm) > 1 {
-			isNum, n, isHex = parseNumber(mm[1])
+		if t[1] != "" {
+			isNum, n, isHex = parseNumber(string(t[1]))
 			if isNum || isHex {
 				isNumber = true
 				minmax[1] = n
+			} else {
+				// no need to proceed further if even ONE of the list are NaN (i.e. '{0, sudo, 5-10}')
+				return false, ret
 			}
 		}
 		ret = append(ret, minmax)
+	}
+	if logLevel > 2 {
+		log.Printf("\t## TokenToInt result: '%+v', %d tokens", ret, len(ret))
 	}
 	return isNumber, ret
 }
@@ -436,7 +509,7 @@ func parseNumber(s string) (bool, int, bool) {
 	return isNumber, iBase10, isHex
 }
 
-func lookupServicePort(port string) int {
+func lookupServicePort(port string) (int, error) {
 	//log.Printf("\tLooking up service port '%s'\n", port)
 	p, err := strconv.Atoi(port) // Q: Should use parseNumber() here too?
 	if err != nil {
@@ -445,25 +518,115 @@ func lookupServicePort(port string) int {
 		if err != nil {
 			p, err = net.LookupPort("udp", port)
 			if err != nil {
-				log.Panic(err)
+				err = fmt.Errorf("Unable to convert Port:%s into integer - %v", port, err)
 			}
 		}
 	}
-	//log.Printf("\t\tService port '%s' -> %d\n", port, p)
-	return p
+	if p == 0 {
+		err = fmt.Errorf("Token '%s' cannot be converted to any known port", port)
+	}
+	if logLevel > 2 && err == nil {
+		log.Printf("\t\tService port '%s' -> %d\n", port, p)
+	}
+	return p, err
 }
 
-func parseCommaSeparated(s TToken) []TToken {
-	var retList []TToken
+// returns single, paired-range ('-'), or multiple (',' and can be list of paired-ranges) based IPs
+func tokenToIP(t TToken) ([][2]TIPAddress, error) {
+	var retIP [][2]TIPAddress
+	var err error
+	pairedList := parseCommaSeparated(t)
+	for _, pair := range pairedList {
+		newIPs := [2]TIPAddress{}
+		ip, ipnet, ipErr := net.ParseCIDR(string(pair[0]))
+		err = ipErr
+		if err == nil {
+			newIPs[0] = TIPAddress{IP: ip, IPNet: *ipnet, SAddr: t, IsIPv6: len(ip) == net.IPv6len}
+		}
+		if len(pair[1]) > 0 {
+			ip, ipnet, ipErr := net.ParseCIDR(string(pair[1]))
+			err = ipErr
+			if err == nil {
+				newIPs[1] = TIPAddress{IP: ip, IPNet: *ipnet, SAddr: t, IsIPv6: len(ip) == net.IPv6len}
+			}
+		}
+		retIP = append(retIP, newIPs)
+	}
+	return retIP, err
+}
+
+// Splits comma-separated tokens into paired list
+func parseCommaSeparated(s TToken) [][2]TToken {
+	var retList [][2]TToken
+	if strings.HasPrefix(string(s), "\"") || strings.HasPrefix(string(s), "'") {
+		// don't want to mess with quoted string based tokens
+		retList = append(retList, [2]TToken{s, TToken("")})
+		return retList
+	}
+
 	// input: "a,b,c,d-h,i" (no space)
+	// output: {'a', ''}, {'b', ''}, {'c', ''}, {'d', 'h'}, {'i', ''} (5 paired tokens)
 	split := strings.Split(string(s), ",")
 	for _, sc := range split {
-		retList = append(retList, TToken(sc))
+		pair := [2]TToken{"", ""}
+		sd := strings.Split(string(sc), "-")
+		for i, s := range sd {
+			// cannot/will not handle cases of 'a-b-c', will only take the first pair
+			if i < 2 {
+				pair[i] = TToken(s)
+			}
+		}
+		retList = append(retList, pair)
 	}
 	if logLevel > 2 {
 		log.Printf("\tCSV: %s -> {%+v}(%d)", s, retList, len(retList))
 	}
 	return retList
+}
+
+// mainly used to dump tokens as comma separated string for debug purposes
+func tokensToString(tokens []TToken) string {
+	retStr := ""
+	for i, t := range tokens {
+		retStr += "'" + string(t) + "'"
+		if i+1 < len(tokens) {
+			retStr += ","
+		}
+	}
+	return retStr
+}
+
+// input: '22:accept,23:drop' (assume they are single token)
+func parseVMap(t TToken) ([]TVMap, error) {
+	retMap := []TVMap{}
+	var err error = nil
+	if strings.Contains(string(t), ":") == false {
+		err = fmt.Errorf("Token '%v' does not seem to be a vmap token (does not contain ':' seprator)", t)
+		return retMap, err
+	}
+	// vlist format: {'22:accept', ''}, {'23:drop', ''}
+	vlist := parseCommaSeparated(t)
+	for _, v := range vlist {
+		sl := strings.Split(string(v[0]), ":")
+		if len(sl) == 2 {
+			vm := TVMap{Verdict: TVerdict(sl[1])} // 2nd token is always the verdict
+			if isNum, nl := tokenToInt(TToken(sl[0])); isNum {
+				vm.Port = TPort(nl[0][0])
+			} else {
+				vm.ServicePort = TToken(sl[0])
+				// save time on lookup later
+				if pn, lerr := lookupServicePort(sl[0]); lerr == nil {
+					vm.Port = TPort(pn)
+				}
+			}
+			retMap = append(retMap, vm)
+		} else {
+			err = fmt.Errorf("Token '%v' is not in the format of '<port>:<verdict>'", t)
+			return retMap, err
+		}
+	}
+
+	return retMap, err
 }
 
 func parseTable(slist []TToken) *TTable {
@@ -631,9 +794,9 @@ func (thisPChainHead *TChain) FindChainRule(s1 string) *TChain {
 
 // ChainRule expects tokenized list of string so that it does not have to do the parsing of
 // quoted strings (i.e. [comment] ["this is a comment, so it's 2 tokens"])
-func (thisPChainHead *TChain) ChainRule(cmd TRuleCommand, ruleRO *TTextStatement) bool {
+func (thisPChainHead *TChain) ChainRule(cmd TRuleCommand, ruleRO *TTextStatement) error {
 	processed := false
-	r := thisPChainHead.ParseChainRule(ruleRO)
+	r, err := thisPChainHead.ParseChainRule(ruleRO, 0)
 	pCurrentChain := thisPChainHead.GetTail()
 	switch cmd {
 	case CRuleCommandAdd:
@@ -656,160 +819,299 @@ func (thisPChainHead *TChain) ChainRule(cmd TRuleCommand, ruleRO *TTextStatement
 		}
 	}
 
-	return processed
+	return err
 }
 
 // Statement is the action performed when the packet match the rule. It could be terminal and non-terminal.
 // In a certain rule we can consider several non-terminal statements but only a single terminal statement.
-func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement) *TRule {
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(ruleRO, 0, 1)
-	if haveToken == false {
-		log.Panicf("Unable to find next token - %+v", ruleRO)
-	}
-	//token := TToken(strings.ToLower(strings.TrimSpace(currentRule.Tokens[0])))
-	if logLevel > 1 {
-		log.Printf("\t\t\t\tChain Rule:Depth=%d:%+v(Statements:%d)", currentRule.Depth, currentRule.Tokens, len(currentRule.SubStatement))
+func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndexRO uint16) (*TRule, error) {
+	if ruleRO == nil {
+		log.Panicf("Unable to handle chain rule that is nil")
 	}
 
+	err, iTokenIndex, tokens, _ := getNextToken(ruleRO, iTokenIndexRO, 1)
+	if err != nil {
+		log.Panicf("%s: Unable to find next token - %+v", err.Error(), ruleRO)
+	}
+
+	token := tokens[0]
 	newTail := new(TChain) // append it to the tail of the existing chain
-	newTail.Rule.SRule = currentRule.Tokens
+	newTail.Rule.SRule = ruleRO.Tokens
+	if logLevel > 1 {
+		log.Printf("\t\t\tChain Rule:Depth=%d:%+v(Statements:%d)", ruleRO.Depth, ruleRO.Tokens, len(ruleRO.SubStatement))
+	}
 
-	switch tokens[0] {
-	case CTokenChainType:
-		ret := parseChainType(currentRule)
-		if ret != nil {
-			newTail.Rule.Type = *ret
+	switch token {
+	case CTokenType:
+		ret, err := parseChainType(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Type = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenChainHook:
-		log.Panicf("Token '%s' encountered without keyword 'type' (in %+v)", tokens, currentRule)
+		log.Panicf("Token '%s' encountered without keyword 'type' (in %+v)", tokens, ruleRO)
 	case CTokenChainPriority:
-		log.Panicf("Token '%s' encountered without keyword 'type' (in %+v)", tokens, currentRule)
+		log.Panicf("Token '%s' encountered without keyword 'type' (in %+v)", tokens, ruleRO)
 	case CTokenChainPolicy:
-		newTail.Rule.Policy = parseDefaultPolicy(currentRule)
+		p, err := parseDefaultPolicy(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		}
 		// try to locate existing ChainType and set that Policy if not set yet...
+		newTail.Rule.Policy = p
 
 	case CTokenMatchIP:
-		ret := parsePayloadIp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Ip = *ret
+		ret, err := parsePayloadIp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Ip = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchIP6:
-		ret := parsePayloadIp6(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Ip6 = *ret
+		ret, err := parsePayloadIp6(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Ip6 = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchTCP:
-		ret := parsePayloadTcp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Tcp = *ret
+		ret, err := parsePayloadTcp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Tcp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchUDP:
-		ret := parsePayloadUdp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Udp = *ret
+		ret, err := parsePayloadUdp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Udp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchUDPLite:
-		ret := parsePayloadUdpLite(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.UdpLite = *ret
+		ret, err := parsePayloadUdpLite(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.UdpLite = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchSCTP:
-		ret := parsePayloadSctp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Sctp = *ret
+		ret, err := parsePayloadSctp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Sctp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchDCCP:
-		ret := parsePayloadDccp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Dccp = *ret
+		ret, err := parsePayloadDccp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Dccp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchAH:
-		ret := parsePayloadAh(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Ah = *ret
+		ret, err := parsePayloadAh(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Ah = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchESP:
-		ret := parsePayloadEsp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Esp = *ret
+		ret, err := parsePayloadEsp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Esp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchComp:
-		ret := parsePayloadIpComp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.IpComp = *ret
+		ret, err := parsePayloadIpComp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.IpComp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchICMP:
-		ret := parsePayloadIcmp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Icmp = *ret
+		ret, err := parsePayloadIcmp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Icmp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchICMPv6:
-		ret := parsePayloadIcmpv6(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Icmpv6 = *ret
+		ret, err := parsePayloadIcmpv6(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Icmpv6 = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchEther:
-		ret := parsePayloadEther(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Ether = *ret
+		ret, err := parsePayloadEther(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Ether = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchDST:
-		ret := parsePayloadDst(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Dst = *ret
+		ret, err := parsePayloadDst(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Dst = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchFrag:
-		ret := parsePayloadFrag(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Frag = *ret
+		ret, err := parsePayloadFrag(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Frag = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchHBH:
-		ret := parsePayloadHbh(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Hbh = *ret
+		ret, err := parsePayloadHbh(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Hbh = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchMH:
-		ret := parsePayloadMh(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Mh = *ret
+		ret, err := parsePayloadMh(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Mh = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchRT:
-		ret := parsePayloadRt(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Rt = *ret
+		ret, err := parsePayloadRt(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Rt = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchVLAN:
-		ret := parsePayloadVlan(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Vlan = *ret
+		ret, err := parsePayloadVlan(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Vlan = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchARP:
-		ret := parsePayloadArp(currentRule)
-		if ret != nil {
-			newTail.Rule.Payload.Arp = *ret
+		ret, err := parsePayloadArp(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Payload.Arp = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchCT:
-		ret := parseConnTrack(currentRule)
-		if ret != nil {
-			newTail.Rule.ConnTrack = *ret
+		ret, err := parseConnTrack(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.ConnTrack = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	case CTokenMatchMeta:
-		ret := parseMeta(currentRule)
-		if ret != nil {
-			newTail.Rule.Meta = *ret
+		ret, err := parseMeta(ruleRO, iTokenIndexRO)
+		if err != nil {
+			log.Panic(err)
+		} else {
+			newTail.Rule.Meta = ret
+			if logLevel > 1 {
+				log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+			}
 		}
 	default:
 		{
 			// first, check if it is of 'meta' tokens, which can be without it (i.e. 'iif lo accept')
-			if IsMetaRule(currentRule) == false {
-				// meta parsed as nil, so assume it's unknown
-				log.Panicf("Unhandled chain Rule '%v' (in '%+v') - TokenIndex=%d", tokens, currentRule, iTokenIndex)
-			} else {
+			if isMetaRule(ruleRO, iTokenIndexRO) {
 				// parse for meta
-				ret := parseMeta(currentRule)
-				if ret != nil {
-					newTail.Rule.Meta = *ret
+				ret, err := parseMeta(ruleRO, iTokenIndexRO)
+				if err != nil {
+					log.Panic(err)
+				} else {
+					newTail.Rule.Meta = ret
+					if logLevel > 1 {
+						log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+					}
 				}
+			} else if isCounterRule(ruleRO, iTokenIndexRO) {
+				// parse for counter
+				ret, err := parseCounter(ruleRO, iTokenIndexRO)
+				if err != nil {
+					log.Panic(err)
+				} else {
+					newTail.Rule.Counter = ret
+					if logLevel > 1 {
+						log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
+					}
+				}
+			} else {
+				// meta parsed as nil, so assume it's unknown
+				log.Panicf("Unhandled chain Rule '%v' (in '%+v') - TokenIndex=%d", tokens, ruleRO, iTokenIndex)
 			}
 		}
 	}
@@ -817,48 +1119,85 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement) *TRule {
 		thisPChainHead.AppendChain(newTail)
 	}
 	//log.Printf("# New rule: %+v\n\n", newTail.Rule.SRule)
-	return &newTail.Rule
+	return &newTail.Rule, err
 }
 
 // type <type> hook <hook> [device <device>] priority <priority> \; [policy <policy> \;]
-func parseChainType(rule *TTextStatement) *TRuleType {
-	retType := new(TRuleType)
-	for i := 0; i < len(rule.Tokens); i++ {
-		switch TToken(rule.Tokens[i]) {
-		case CTokenChainType:
-			i++
-			switch TChainType(strings.ToLower(rule.Tokens[i])) {
+func parseChainType(rule *TTextStatement, iTokenIndexRO uint16) (TRuleType, error) {
+	var retExpr TRuleType
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
+		log.Panicf("%s: Unable to find next token - %+v", err.Error(), rule)
+	}
+
+	for {
+		switch tokens[0] {
+		case CTokenType:
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				log.Panicf("Unable to find next token - %+v", rule)
+			}
+			switch TChainType(tokens[0]) {
 			case CChainTypeFilter:
-				retType.ChainType = CChainTypeFilter
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				retExpr.ChainType = CChainTypeFilter
 			case CChainTypeRoute:
-				retType.ChainType = CChainTypeRoute
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				retExpr.ChainType = CChainTypeRoute
 			case CChainTypeNat:
-				retType.ChainType = CChainTypeNat
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				retExpr.ChainType = CChainTypeNat
 			default:
-				log.Panicf("Unkonwn chain Type '%s' (%+v)", rule.Tokens[i], rule)
+				log.Panicf("Unkonwn chain Type '%v' (%+v)", tokens, rule)
 			}
 
 		case CTokenChainHook:
-			i++
-			retType.Hook = THookName(rule.Tokens[i])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				log.Panicf("Unable to find next token - %+v", rule)
+			}
+			retExpr.Hook = THookName(tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 
 		case CTokenChainDevice:
-			i++
-			retType.Device = rule.Tokens[i]
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				log.Panicf("Unable to find next token - %+v", rule)
+			}
+			retExpr.Device = string(tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 
 		case CTokenChainPriority:
-			i++
-			p, err := strconv.Atoi(rule.Tokens[i])
-			if err == nil {
-				retType.Priority = Tpriority(p)
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				log.Panicf("Unable to find next token - %+v", rule)
+			}
+			isNum, n := tokenToInt(tokens[0])
+			if isNum {
+				retExpr.Priority = Tpriority(n[0][0])
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			} else {
-				log.Panicf("Unable to convert '%s' to int value for Priority - %-v", rule.Tokens[i], err)
+				log.Panicf("Unable to convert '%v' to int value for Priority", tokens)
 			}
 
 		case CTokenChainPolicy:
-			retType.Policy = parseDefaultPolicy(rule)
-			i++
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			p, err := parseDefaultPolicy(currentRule, iTokenIndex) // inc iTokenIndex here so getNextToken() below can test or do we assume policy is as-is?
+			if err != nil {
+				log.Panicf("Unable to find next token - %+v", rule)
+			}
+			retExpr.Policy = p
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		}
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
+			err = nil // return success
+			break
 		}
 	}
-	return retType
+	return retExpr, err
 }

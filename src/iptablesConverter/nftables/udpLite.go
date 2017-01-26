@@ -39,20 +39,21 @@ type TExpressionHeaderUdpLite struct {
 	Checksum uint16
 
 	//EQ      TEquate
-	//Verdict TStatementVerdict
-	Tokens []TToken
+	Verdict TStatementVerdict
+	Counter TStatementCounter
+	Tokens  []TToken
 }
 
-func parsePayloadUdpLite(rule *TTextStatement) *TExpressionHeaderUdpLite {
-	retUdpLite := new(TExpressionHeaderUdpLite)
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+func parsePayloadUdpLite(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHeaderUdpLite, error) {
+	var retExpr TExpressionHeaderUdpLite
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchUDPLite {
-		retUdpLite.Tokens = append(retUdpLite.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
@@ -64,6 +65,36 @@ func parsePayloadUdpLite(rule *TTextStatement) *TExpressionHeaderUdpLite {
 		}
 	}
 
-	log.Panicf("Not implemented: %+v", rule)
-	return nil
+	// now handle verdicts and counter
+	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	if err == nil {
+		done := false
+		lastRule := currentRule
+		iLastIndex := iTokenIndex
+		for done == false {
+			// verdits usually goes last, so always check 'counter' token first
+			if isCounterRule(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				retExpr.Counter, err = parseCounter(currentRule, iTokenIndex)
+				iTokenIndex = iLastIndex
+				currentRule = lastRule
+			} else if isVerdict(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex)
+				iTokenIndex = iLastIndex
+				currentRule = lastRule
+			} else {
+				err = nil // we're done
+				done = true
+				break
+			}
+			if err, iLastIndex, tokens, lastRule = getNextToken(currentRule, iTokenIndex, 1); err != nil {
+				err = nil // we're done
+				done = true
+			}
+		}
+	} else {
+		err = nil // we're done
+	}
+	return retExpr, err
 }

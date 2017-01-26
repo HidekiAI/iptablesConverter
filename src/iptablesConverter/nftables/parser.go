@@ -105,13 +105,12 @@ func splitNonWhitespaced(tokens []string) []string {
 	return retList
 }
 func splitAndRejoin(token string, find string, tokens []string, i int) []string {
-	retStrList := tokens
 	split := splitWithKeyInPlace(token, find)
-	tail := append(split, retStrList[i+1:]...)
-	retStrList = append(retStrList[:i], tail...)
+	tail := append(split, tokens[i+1:]...)
+	retStrList := append(tokens[:i], tail...)
 	if (logLevel > 1) && (len(tokens) != len(retStrList)) {
-		log.Printf("splitAndRejoin(Key='%s',Token='%s')\n\tsplit(%d):%+v\n\ttail(%d):%+v\n\tBefore:%+v(%2d)\n\t After:%+v(%2d)\n",
-			find, token, len(split), split, len(tail), tail, tokens, len(tokens), retStrList, len(retStrList))
+		log.Printf("splitAndRejoin(Key='%s', Token='%s')\n\tAfter split count(%d) -> %+v\n\ttail(%d) -> %+v\n\t\tBefore(%2d):%+v\n\t\t After(%2d):%+v\n",
+			find, token, len(split), split, len(tail), tail, len(tokens), tokens, len(retStrList), retStrList)
 	}
 	return retStrList
 }
@@ -125,7 +124,10 @@ func joinDelimited(tokens []string, key string) []string {
 	start := 0
 	stop := 0
 	foundKey := false
-	for i, t := range tokens {
+	done := false
+	i := 0
+	for done == false {
+		t := tokens[i]
 		// see if it has been appended (i.e. 'a,' instead of 'a' and ',') as well
 		// handles cases of ',' as standalone token, or ',a' and 'a,', and
 		// because it is already tokenized, by just checking prefix and suffix,
@@ -150,26 +152,42 @@ func joinDelimited(tokens []string, key string) []string {
 			if start == 0 {
 				if isToken || hasPrefix {
 					// start needs to happen on previous token if key found on current or as prefix
-					start = i - 1
-					stop = i
+					if i > 0 {
+						start = i - 1
+					} else {
+						start = 0
+					}
 				} else {
-					// if occurances is at the suffix, make this one to be the start
+					// if occurrences is at the suffix, make this one to be the start
 					start = i
-					stop = i + 1
 				}
+				stop = i + 1
+			}
+		}
+		if foundKey && (start != stop) {
+			// join them all with no whitespace between, so it becomes a single expression/token
+			joined := strings.Join(tokens[start:stop+1], "")
+			tail := []string{joined}
+			tail = append(tail, tokens[stop+1:]...)
+			retList = append(tokens[:start], tail...)
+			if len(tokens) <= len(retList) {
+				log.Panicf("Programmer error: why did it not join? len(tokens)==%d should be > len(retList)==%d", len(tokens), len(retList))
+			}
+			foundKey = false
+			start = 0
+			stop = 0
+			// rewind one step back
+			if i > 0 {
+				i--
+			}
+		} else {
+			i++
+			if i >= len(tokens) {
+				done = true
 			}
 		}
 	}
-	if foundKey {
-		// join them all with no whitespace between, so it becomes a single expression/token
-		joined := strings.Join(tokens[start:stop+1], "")
-		tail := []string{joined}
-		tail = append(tail, tokens[stop+1:]...)
-		retList = append(tokens[:start], tail...)
-		if len(tokens) <= len(retList) {
-			log.Panicf("Programmer error: why did it not join? len(tokens)==%d should be > len(retList)==%d", len(tokens), len(retList))
-		}
-	} else {
+	if len(retList) == 0 {
 		retList = tokens
 	}
 	if (logLevel > 1) && foundKey {
@@ -267,8 +285,9 @@ func tokenizeLineByQuotedText(line string) []string {
 		}
 
 		// Now, make sure expressions such as 'a, b ,c - d, e,f' are treated as single expression 'a,b,c-d,e,f'
-		retStrList = joinDelimited(retStrList, ",")
+		retStrList = joinDelimited(retStrList, ":") // i.e. for vmap '{ 22:accept, 80 : drop, https:accept}'
 		retStrList = joinDelimited(retStrList, "-")
+		retStrList = joinDelimited(retStrList, ",") // do "," last so all types of lists are first combined
 		//log.Printf("\tDone tokenizing to %d tokens\n", len(retStrList))
 	}
 	return retStrList
@@ -621,7 +640,7 @@ func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, toke
 			token := linesRO[iLineIndex].tokens[iTokenIndex]
 			pCurrentBlock.Tokens = append(pCurrentBlock.Tokens, token)
 
-			logMsg += fmt.Sprintf("%s:%d ", token, iTokenIndex)
+			logMsg += fmt.Sprintf("[%d]%s ", iTokenIndex, token)
 
 			switch token {
 			case "{":

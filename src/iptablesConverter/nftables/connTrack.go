@@ -134,38 +134,33 @@ type TExpressionConntrack struct {
 	Status     Tctstatus
 	Mark       Tpacketmark
 	Expiration Ttime
-	Helper     string   // Helper associated with the connection
-	Label      Tctlabel // Connection tracking label
-	L3proto    Tnfproto // Layer 3 protocol of the connection
-	Saddr      struct { // Source address of the connection for the given direction
-		Ipv4addr Tipv4addr
-		Ipv6addr Tipv6addr
-	}
-	Daddr struct { // Destination address of the connection for the given direction
-		Ipv4addr Tipv4addr
-		Ipv6addr Tipv6addr
-	}
-	Protocol Tinetproto // Layer 4 protocol of the connection for the given direction
-	ProtoSrc uint16     // Layer 4 protocol source for the given direction
-	ProtoDst uint16     // Layer 4 protocol destination for the given direction
-	Packets  uint64     // Packet count seen in the given direction or sum of original and reply
-	Bytes    uint64     // Byte count seen
+	Helper     string     // Helper associated with the connection
+	Label      Tctlabel   // Connection tracking label
+	L3proto    Tnfproto   // Layer 3 protocol of the connection
+	Saddr      TIPAddress // Source address of the connection for the given direction
+	Daddr      TIPAddress // Destination address of the connection for the given direction
+	Protocol   Tinetproto // Layer 4 protocol of the connection for the given direction
+	ProtoSrc   uint16     // Layer 4 protocol source for the given direction
+	ProtoDst   uint16     // Layer 4 protocol destination for the given direction
+	Packets    uint64     // Packet count seen in the given direction or sum of original and reply
+	Bytes      uint64     // Byte count seen
 
 	EQ      TEquate
 	Verdict TStatementVerdict
+	Counter TStatementCounter
 	Tokens  []TToken
 }
 
-func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
-	retCT := new(TExpressionConntrack)
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConntrack, error) {
+	var retExpr TExpressionConntrack
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchCT {
-		retCT.Tokens = append(retCT.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
@@ -177,11 +172,11 @@ func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
 			//		ct direction original
 			//		ct direction != original
 			//		ct direction {reply, original}
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken == false {
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
-			retCT.Tokens = append(retCT.Tokens, tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			log.Panicf("Unhandled token '%v' for 'ct direction' (in %+v)", tokens, rule)
 		}
 	case CTokenCTExp:
@@ -197,22 +192,22 @@ func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
 			//		ct expiration != 33s-45s
 			//		ct expiration {33, 55, 67, 88}
 			//		ct expiration { 1m7s, 33s, 55s, 1m28s}
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken == false {
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
-			retCT.Tokens = append(retCT.Tokens, tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			log.Panicf("Unhandled token '%v' for 'ct expiration' (in %+v)", tokens, rule)
 		}
 	case CTokenCTHelper:
 		{
 			//	helper "<helper>"	Helper associated with the connection
 			//		ct helper "ftp"
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken == false {
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
-			retCT.Tokens = append(retCT.Tokens, tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			log.Panicf("Unhandled token '%v' for 'ct helper' (in %+v)", tokens, rule)
 		}
 	case CTokenCTMark:
@@ -237,11 +232,11 @@ func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
 			//		ct mark set 0x11
 			//		ct mark set mark
 			//		ct mark set mark map { 1 : 10, 2 : 20, 3 : 30 }
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken == false {
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
-			retCT.Tokens = append(retCT.Tokens, tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			log.Panicf("Unhandled token '%v' for 'ct mark' (in %+v)", tokens, rule)
 		}
 	case CTokenCTOrig, CTokenCTReply:
@@ -269,11 +264,11 @@ func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
 			//		ct original proto-dst 22
 			//	[original | reply] proto-src <port>
 			//		ct reply proto-src 53
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken == false {
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
-			retCT.Tokens = append(retCT.Tokens, tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			log.Panicf("Unhandled token '%v' for 'ct original|reply' (in %+v)", tokens, rule)
 		}
 	case CTokenCTState:
@@ -283,41 +278,26 @@ func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
 			//		ct state != related
 			//		ct state established
 			//		ct state 8
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken == false {
-				log.Panicf("Unable to find next token - %+v", rule)
-			}
-			retCT.Tokens = append(retCT.Tokens, tokens[0])
-			if isEq, e := parseEquates(tokens[0]); isEq {
-				retCT.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
-					log.Panicf("Unable to find next token - %+v", rule)
-				}
-				retCT.Tokens = append(retCT.Tokens, tokens[0])
-			}
-			cs := parseCommaSeparated(tokens[0])
-			for _, ccs := range cs {
-				retCT.State = append(retCT.State, TConnTrackState(ccs))
-			}
-
-			lastRule := currentRule
-			lastIndex := iTokenIndex
 			// ct state != {
 			//	new, untracked }
 			//  counter accept
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				retCT.Tokens = append(retCT.Tokens, tokens[0])
-				// see if it is verdict or other expressions
-				if IsVerdict(tokens[0]) {
-					retCT.Verdict = parseVerdict(lastRule, int(lastIndex))
-					haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				} else {
-					log.Panicf("Unhandled token '%v' found in expression '%+v'", tokens, currentRule)
-				}
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				log.Panicf("Unable to find next token - %+v", rule)
 			}
-			return retCT
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			if isEq, e := parseEquates(tokens[0]); isEq {
+				retExpr.EQ = e
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			}
+			cs := parseCommaSeparated(tokens[0])
+			for _, ccs := range cs {
+				retExpr.State = append(retExpr.State, TConnTrackState(ccs[0]))
+			}
 		}
 	case CTokenCTStatus:
 		{
@@ -325,11 +305,11 @@ func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
 			//		ct status expected
 			//		ct status != expected
 			//		ct status {expected,seen-reply,assured,confirmed,snat,dnat,dying}
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken == false {
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
-			retCT.Tokens = append(retCT.Tokens, tokens[0])
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			log.Panicf("Unhandled token '%v' for 'ct status' (in %+v)", tokens, rule)
 		}
 	default:
@@ -338,5 +318,43 @@ func parseConnTrack(rule *TTextStatement) *TExpressionConntrack {
 		}
 	}
 
-	return nil
+	// now handle verdicts and counter
+	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	if err == nil {
+		done := false
+		for done == false {
+			// verdits usually goes last, so always check 'counter' token first
+			if isCounterRule(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else if isVerdict(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else {
+				err = nil // we're done
+				done = true
+				break
+			}
+		}
+	} else {
+		err = nil // we're done
+	}
+
+	return retExpr, err
 }

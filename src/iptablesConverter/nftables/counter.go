@@ -29,69 +29,69 @@ type TStatementCounter struct {
 	Bytes   int
 
 	//EQ      TEquate
-	//Verdict TStatementVerdict
-	Tokens []TToken
+	Verdict TStatementVerdict
+	Tokens  []TToken
 }
 
-func parseCounter(rule *TTextStatement) *TStatementCounter {
-	retCtr := new(TStatementCounter)
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+func IsCounterRule(token TToken) bool {
+	if token == CTokenStatementCounter {
+		return true
+	}
+	return false
+}
+func isCounterRule(rule *TTextStatement, iTokenIndexRO uint16) bool {
+	err, _, tokens, _ := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
-	if tokens[0] == CTokenStatementCounter {
-		retCtr.Tokens = append(retCtr.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
-			log.Panicf("Unable to find next token - %+v", rule)
-		}
+	return IsCounterRule(tokens[0])
+}
+
+func parseCounter(rule *TTextStatement, iTokenIndexRO uint16) (TStatementCounter, error) {
+	var retExpr TStatementCounter
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
+		log.Panicf("Unable to find next token - %+v", rule)
+	}
+	if IsCounterRule(tokens[0]) == false {
+		log.Panicf("Token '%s' is not a counter expression - %+v", tokens[0], rule)
 	}
 
-	switch tokens[0] {
-	case CTokenStatementCounterPackets, CTokenStatementCounterBytes:
-		{
-			retCtr.Tokens = append(retCtr.Tokens, tokens[0])
-			token := tokens[0]
-			done := false
-			for !done {
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
-					done = true
-					break
-				}
-				retCtr.Tokens = append(retCtr.Tokens, tokens[0])
-				isNum, n := tokenToInt(tokens[0])
-				if isNum == false {
-					done = true
-					break
-				}
-				if token == CTokenStatementCounterPackets {
-					retCtr.Packets = n[0][0]
-					haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-					if haveToken == false {
-						done = true
-						break
-					}
-					token = tokens[0]
-					retCtr.Tokens = append(retCtr.Tokens, token)
-				} else if token == CTokenStatementCounterPackets {
-					retCtr.Bytes = n[0][0]
-					haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-					if haveToken == false {
-						done = true
-						break
-					}
-					token = tokens[0]
-					retCtr.Tokens = append(retCtr.Tokens, token)
-				}
+	//packets <packets> bytes <bytes>
+	//	counter
+	//	counter packets 0 bytes 0
+	err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndexRO, 1) // should be 'counter' token
+	retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+	done := false
+	for !done {
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
+			done = true
+			break
+		}
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		isNum, n := tokenToInt(tokens[0])
+		if isNum == false {
+			done = true
+			break
+		}
+		if tokens[0] == CTokenStatementCounterPackets {
+			retExpr.Packets = n[0][0]
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				done = true
+				break
 			}
-		}
-	default:
-		{
-			log.Panicf("Unhandled token '%v' for 'counter' (in %+v)", tokens, rule)
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		} else if tokens[0] == CTokenStatementCounterPackets {
+			retExpr.Bytes = n[0][0]
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				done = true
+				break
+			}
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 		}
 	}
-
-	log.Panicf("Not implemented yet: %+v", rule)
-	return nil
+	return retExpr, err
 }

@@ -41,20 +41,21 @@ limit statement
 */
 type TStatementLimit struct {
 	//EQ      TEquate
-	//Verdict TStatementVerdict
-	Tokens []TToken
+	Verdict TStatementVerdict
+	Counter TStatementCounter
+	Tokens  []TToken
 }
 
-func parseStatementLimit(rule *TTextStatement) *TStatementLimit {
-	retLimit := new(TStatementLimit)
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+func parseStatementLimit(rule *TTextStatement, iTokenIndexRO uint16) (TStatementLimit, error) {
+	var retExpr TStatementLimit
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenStatementLimit {
-		retLimit.Tokens = append(retLimit.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
@@ -66,6 +67,42 @@ func parseStatementLimit(rule *TTextStatement) *TStatementLimit {
 		}
 	}
 
-	log.Panicf("Not implemented: %+v", rule)
-	return nil
+	// now handle verdicts and counter
+	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	if err == nil {
+		done := false
+		for done == false {
+			// verdits usually goes last, so always check 'counter' token first
+			if isCounterRule(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else if isVerdict(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else {
+				err = nil // we're done
+				done = true
+				break
+			}
+		}
+	} else {
+		err = nil // we're done
+	}
+	return retExpr, err
 }

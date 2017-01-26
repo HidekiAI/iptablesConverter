@@ -39,14 +39,22 @@ func TestFindTableNoAdd(t *testing.T) {
 	}
 }
 
-func TestStripComment(t *testing.T) {
-	s := `this line has 'quoted #comments' followed by "double-quoted #comment's with sinqle quote in it" here comes the hash:`
-	swc := s + ` # <-- and here's the end`
+func TestStripCommentAndTokenizing(t *testing.T) {
+	e := "   element1, element2,min - max, element3 key1:value key2 : value2 {set1, set2,set3}"
+	eexp := "element1,element2,min-max,element3 key1:value key2:value2 { set1,set2,set3 }" // parser will join the comma separated tokens into single token
+
+	s := `this line has 'quoted #comments' followed by "double-quoted #comment's with sinqle quote in it" here comes the hash`
+
+	swc := e + " " + s + ` # <-- and here's the end`
+	// strip it it'll do parsing as well as tokenizing, all in one
 	ss := stripComment(swc)
+
+	expected := eexp + " " + s
+
 	t.Logf("Original: '%s'\n", swc)
 	t.Logf("Stripped: '%s'\n", ss)
-	t.Logf("Expected: '%s'\n", s)
-	if ss != s {
+	t.Logf("Expected: '%s'\n", expected)
+	if ss != expected {
 		t.Fail()
 	}
 }

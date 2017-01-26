@@ -1,11 +1,16 @@
 package nftables
 
+import (
+	"log"
+	"net"
+)
+
 // Set logLevel to:
 //	0: no logging
 //	1: info
 //	2: debug
 //	3: verbose debug
-const logLevel = 2
+const logLevel = 3
 
 // The types and fields comes from 'man 8 nft'
 // Conventions:
@@ -46,9 +51,13 @@ const (
 	CTokenOr      TToken = "or"  // i.e. 'meta mark set 0xffffffe0 or 0x16', 'ct mark or 0x23 == 0x11'
 	CTokenXor     TToken = "xor" // i.e. 'meta mark set 0xfffe xor 0x16'
 	CTokenDefault TToken = "default"
+	CTokenVMap    TToken = "vmap"
 
 	// Chains
-	CTokenChainType     TToken = "type" //filter, route, nat
+	CTokenType          TToken = "type" //filter, route, nat
+	CTokenChecksum      TToken = "checksum"
+	CTokenSequence      TToken = "sequence"
+	CTokenID            TToken = "id"
 	CTokenChainHook     TToken = "hook"
 	CTokenChainPriority TToken = "priority"
 	CTokenChainPolicy   TToken = "policy"
@@ -224,6 +233,8 @@ type TRuleType struct {
 	Device    string
 	Priority  Tpriority
 	Policy    TVerdict // type can have default policy
+
+	Tokens []TToken
 }
 type TRulePayload struct {
 	Ether   TExpressionHeaderEther
@@ -270,19 +281,21 @@ type TRule struct {
 	Meta      TExpressionMeta
 	Payload   TRulePayload
 	ConnTrack TExpressionConntrack
+	Counter   TStatementCounter
 
 	// Statement
 	Statement TRuleStatement
 }
 
-//type Tlladdr []uint // The link layer address type is used for link layer addresses. Link layer addresses are specified as a variable amount of groups of two hexadecimal digits separated using colons (:).
-type Tipv4addr struct {
-	Addr  uint32
-	SAddr string // dotted address (i.e. "127.0.0.1") without the mask
-}
-type Tipv6addr struct {
-	Addr  [2]uint64 // 128 bits
-	SAddr string    // colon separated address (i.e. "::1", "FE80::") without the mask
+// The link layer address type is used for link layer addresses. Link layer addresses are specified as a variable amount of groups of two hexadecimal digits separated using colons (:).
+//type Tlladdr []uint
+
+// IPAddress structure is same for both IPv6 and IPv4
+type TIPAddress struct {
+	SAddr  TToken
+	IP     net.IP    // IP address without the netmask
+	IPNet  net.IPNet // NOTE: net.ParseCIDR() and net.CIDRMask() returns net.IPMask which is []byte
+	IsIPv6 bool
 }
 
 // Expressions represent values, either constants like network addresses, port numbers etc. or data gathered from the packet during ruleset evaluation. Expressions can be combined using binary, logical, relational and other types of expressions to form complex or relational (match) expressions.  They are also used as arguments to certain types of operations, like NAT, packet marking etc.
@@ -321,7 +334,72 @@ type Tpacketmark struct { // used only by 'meta mark' and 'ct mark'
 	OperatorResult TToken // CTokenEQ, CTokenNE, CTokenOr, CtokenAnd, CTokenXor
 	OperandResult  int    // usually hex
 }
-type Tinetservice uint32 // inet_service - ports
+
+// Generic type to hold an operand/parameters that can be either numerical (ranged or single), or an alias
+type TMinMaxU32 [2]uint32
+type TMinMax [2]int
+type TMinMaxU16 [2]uint16
+type TMinMax16 [2]int16
+type TMinMaxU8 [2]uint8
+type TMinMax8 [2]int8
+type TIntOrAlias struct {
+	Num   int
+	Alias TToken
+	Range TMinMax
+}
+type TUInt32OrAlias struct {
+	Num   uint32
+	Alias TToken
+	Range TMinMaxU32
+}
+type TInt8OrAlias struct {
+	Num   int8
+	Alias TToken
+	Range TMinMax8
+}
+type TUInt8OrAlias struct {
+	Num   uint8
+	Alias TToken
+	Range TMinMaxU8
+}
+type TInt16OrAlias struct {
+	Num   int16
+	Alias TToken
+	Range TMinMax16
+}
+type TUInt16OrAlias struct {
+	Num   uint16
+	Alias TToken
+	Range TMinMaxU16
+}
+
+type TVerdict string
+type TPort uint32
+
+// inet_service
+type Tinetservice struct {
+	Port        [2]TPort  // i.e. '22' or '8000-8001', for lists like '{22, 80, 443, 8000-8001}', do []Tinetservice
+	ServicePort [2]TToken // i.e. 'ssh' or 'ssh-telnet', for lists like '{ssh, http, https, 8000-8001}', do array
+}
+type Tinetproto struct { // inet_proto
+	Range TMinMaxU32 // can be either single number (i.e. {22, -1}) or ranged paired (i.e. {1024-2048})
+	Alias TToken     // in some cases it can be a list (i.e. {esp, udp, ah, comp}) - for lists of alias, make sure do to do []Tinetproto
+}
+
+// vmap: i.e. 'tcp dport vmap { 22 : accept, 23 : drop }'
+type TVMap struct {
+	Port        TPort
+	ServicePort TToken
+	Verdict     TVerdict
+}
+
+// ID (i.e. uid or gid) can be either int or string
+// i.e. id=bin, root, daemon
+// it can also be range based (i.e. '2000-2005')
+type TID struct {
+	IDByName []TToken // can be CSV (i.e. {bin, root, daemon}
+	ID       [2]int   // range based, but if just single, it is {n, -1} - ID=0 is root, -1 indicates unset
+}
 
 // Nftables is just a container map of tables where the KEY is a unique
 // dotted namespace (family.tableName) for quicker lookup
@@ -329,4 +407,8 @@ type TUniqueTableName string // dotted table name such as "ip.filter", "ip6.nat"
 type Nftables struct {
 	Tables map[TUniqueTableName]TTable // key: table name (i.e. "ip.filter", "ip6.filter")
 	//sync.RWMutex	// see https://blog.golang.org/go-maps-in-action in terms of concurrency issue with maps
+}
+
+func init() {
+	log.SetFlags(log.Lshortfile)
 }

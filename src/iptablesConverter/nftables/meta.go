@@ -2,6 +2,7 @@ package nftables
 
 import (
 	"log"
+	"strconv"
 )
 
 // Matches are clues used to access to certain packet infromation and reate filters according to them.
@@ -182,8 +183,8 @@ const (
 
 type Tifaceindex string // iface_index (i.e. eth0, tun0, etc)
 type Tifacetype string  //uint16    // iface_type 16 bit number
-type Tuid [2]uint32     // uid
-type Tgid [2]uint32     // gid
+type Tuid TID           // uid
+type Tgid TID           // gid
 type Trealm string      //[2]uint32        // realm
 type Tdevgrouptype struct {
 	Num     [2]uint32 // devgroup_type
@@ -229,19 +230,21 @@ type TExpressionMeta struct {
 }
 
 // meta statements seems to be allowed without the 'meta' keyword
-func IsMetaRule(rule *TTextStatement) bool {
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+func isMetaRule(rule *TTextStatement, iTokenIndexRO uint16) bool {
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchMeta {
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
-
-	switch tokens[0] {
+	return IsMetaRule(tokens[0])
+}
+func IsMetaRule(token TToken) bool {
+	switch token {
 	case CTokenMatchMetaIIfName,
 		CTokenMatchMetaOIfName,
 		CTokenMatchMetaIIf,
@@ -263,35 +266,35 @@ func IsMetaRule(rule *TTextStatement) bool {
 		CTokenMatchMetaCGroup:
 		return true
 	}
-	log.Printf("Token='%v' is not part of meta (in %+v)", tokens, rule)
+	if logLevel > 2 {
+		log.Printf("\tToken='%v' is not part of 'meta'", token)
+	}
 	return false
 }
 
-func parseMeta(rule *TTextStatement) *TExpressionMeta {
-	meta := new(TExpressionMeta)
-	if IsMetaRule(rule) == false {
+func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, error) {
+	var retExpr TExpressionMeta
+	if isMetaRule(rule, tokenIndexRO) == false {
 		log.Panicf("Statement '%+v' is not a match 'meta' based rule!", rule)
 	}
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, tokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchMeta {
-		meta.Tokens = append(meta.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
-	// setup for next token (special case is when next token is
-	// SubStatement - i.e. 'cpu {1, 2-4}' is actual rule.Tokens='cpu {'
-	// and rule.SubStatement.Tokens = '1, 2-4', in which len(tokens)==1
-	//	if i >= len(tokens) {
-	//		// HACK: Until I do it right...
-	//		tokens = append(tokens, "") // place a sentinal at end so we do not get outside index reference panic...
-	//	}
+	token := tokens[0]
+	err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+	if err != nil {
+		log.Panicf("Unable to find next token - %+v", rule)
+	}
 
-	switch tokens[0] {
+	switch token {
 	//iifname <input interface name>	Input interface name
 	//	meta iifname "eth0"
 	//	meta iifname != "eth0"
@@ -299,18 +302,21 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta iifname "eth*"
 	case CTokenMatchMetaIIfName:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Iifname = append(meta.Iifname, Tifaceindex(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Iifname = append(retExpr.Iifname, Tifaceindex(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
+
 		}
 	//oifname <output interface name>	Output interface name
 	//	meta oifname "eth0"
@@ -319,17 +325,19 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta oifname "eth*"
 	case CTokenMatchMetaOIfName:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Oifname = append(meta.Oifname, Tifaceindex(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Oifname = append(retExpr.Oifname, Tifaceindex(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//iif <input interface index>	Input interface index
@@ -337,17 +345,19 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta iif != eth0
 	case CTokenMatchMetaIIf:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Iif = append(meta.Iif, Tifaceindex(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Iif = append(retExpr.Iif, Tifaceindex(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//oif <output interface index>	Output interface index
@@ -356,17 +366,19 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta oif {eth0, lo}
 	case CTokenMatchMetaOIf:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Oif = append(meta.Oif, Tifaceindex(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Oif = append(retExpr.Oif, Tifaceindex(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//iiftype <input interface type>	Input interface type
@@ -375,17 +387,19 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta iiftype ether
 	case CTokenMatchMetaIIfType:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Iiftype = append(meta.Iiftype, Tifaceindex(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Iiftype = append(retExpr.Iiftype, Tifaceindex(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//oiftype <output interface type>	Output interface hardware type
@@ -394,17 +408,19 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta oiftype ether
 	case CTokenMatchMetaOIfType:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Oiftype = append(meta.Oiftype, Tifacetype(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Oiftype = append(retExpr.Oiftype, Tifacetype(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//length <length>	Length of the packet in bytes
@@ -417,25 +433,26 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta length { 33-55, 67-88 }
 	case CTokenMatchMetaLength:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			isNum, nl := tokenToInt(tokens[0])
+			isNum, nl := tokenToInt(tokens[0]) // i.e. '2,3,4-7,8' -> {2,0}, {3,0}, {4,7}, {8,0}
 			if isNum == false {
 				log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
 			}
-
 			for _, n := range nl {
 				tl := Tlength{uint32(n[0]), uint32(n[1])}
-				meta.Length = append(meta.Length, tl)
-			}
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+				retExpr.Length = append(retExpr.Length, tl)
+				retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[0])))
+				if n[1] >= 0 {
+					retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[1])))
+				}
 			}
 		}
 	//protocol <protocol>	ethertype protocol
@@ -444,17 +461,19 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta protocol { ip, arp, ip6, vlan }
 	case CTokenMatchMetaProtocol:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Protocol = append(meta.Protocol, Tprotocol(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Protocol = append(retExpr.Protocol, Tprotocol(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//nfproto <protocol>
@@ -463,38 +482,40 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta nfproto { ipv4, ipv6 }
 	case CTokenMatchMetaNfProto:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.Nfproto = append(meta.Nfproto, Tnfproto(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Nfproto = append(retExpr.Nfproto, Tnfproto(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//l4proto <protocol>
 	//	meta l4proto 22
-	//	meta l4proto != 233
-	//	meta l4proto 33-45
 	//	meta l4proto { 33, 55, 67, 88 }
 	//	meta l4proto { 33-55 }
 	case CTokenMatchMetaL4Proto:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-				haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-				if haveToken == false {
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			}
-			meta.L4Proto = append(meta.L4Proto, TLayer4Proto(tokens[0]))
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.L4Proto = append(retExpr.L4Proto, TLayer4Proto(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//mark [set] <mark>	Packet mark
@@ -515,23 +536,26 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta mark set 0xfffe xor 0x16
 	case CTokenMatchMetaMark:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			startIndex := iTokenIndex - 1 // rewind 1 token
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
 				startIndex++
 			}
 			// grab at most next 4 tokens
-			haveToken, _, tokens, currentRule = getNextToken(currentRule, startIndex, 4)
-			if haveToken == false {
+			err, _, tokens, currentRule = getNextToken(currentRule, startIndex, 4)
+			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
 			skip := 0
-			skip, meta.Mark = parseBitwiseMark(tokens)
+			skip, retExpr.Mark = parseBitwiseMark(tokens)
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0:skip]...)
 			iTokenIndex = startIndex + uint16(skip)
-			haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-			if haveToken {
-				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
-			}
 		}
 	//skuid <user id>	UID associated with originating socket
 	//	meta skuid {bin, root, daemon}
@@ -545,32 +569,37 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta skuid { 2001-2005 }
 	case CTokenMatchMetaSkUID:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
 			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
+			// first, try it as number list
+			if len(retExpr.Skuid) == 0 {
+				retExpr.Skuid = []Tuid{Tuid{IDByName: []TToken{}}}
+			}
+			isNum, nl := tokenToInt(tokens[0]) // i.e. '2,3,4-7,8' -> {2,0}, {3,0}, {4,7}, {8,0}
+			if isNum == false {
+				// skgid {0, bin, sudo, daemon, usergrp1-usergrp5} - NOTE: ID=0 is root
+				tl := parseCommaSeparated(tokens[0])
 				for _, t := range tl {
-					isNum, nl := tokenToInt(t)
-					if isNum == false {
-						log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-					}
-
-					for _, n := range nl {
-						tl := Tuid{uint32(n[0]), uint32(n[1])}
-						meta.Skuid = append(meta.Skuid, tl)
-					}
+					tu := Tuid{IDByName: t[:]}
+					retExpr.Skuid = append(retExpr.Skuid, tu)
+					retExpr.Tokens = append(retExpr.Tokens, t[:]...)
 				}
 			} else {
-				isNum, nl := tokenToInt(tokens[0])
-				if isNum == false {
-					log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-				}
-
+				// can be single, ranged, or comma-separated
 				for _, n := range nl {
-					tl := Tuid{uint32(n[0]), uint32(n[1])}
-					meta.Skuid = append(meta.Skuid, tl)
+					tl := Tuid{ID: n}
+					retExpr.Skuid = append(retExpr.Skuid, tl)
+					retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[0])))
+					if n[1] >= 0 {
+						retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[1])))
+					}
 				}
 			}
 		}
@@ -586,32 +615,37 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta skgid { 2001-2005 }
 	case CTokenMatchMetaSkGID:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
 			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
+			// first, try it as number list
+			if len(retExpr.Skgid) == 0 {
+				retExpr.Skgid = []Tgid{Tgid{IDByName: []TToken{}}}
+			}
+			isNum, nl := tokenToInt(tokens[0]) // i.e. '2,3,4-7,8' -> {2,0}, {3,0}, {4,7}, {8,0}
+			if isNum == false {
+				// skgid {0, bin, sudo, daemon, usergrp1-usergrp5} - NOTE: ID=0 is root
+				tl := parseCommaSeparated(tokens[0])
 				for _, t := range tl {
-					isNum, nl := tokenToInt(t)
-					if isNum == false {
-						log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-					}
-
-					for _, n := range nl {
-						tl := Tgid{uint32(n[0]), uint32(n[1])}
-						meta.Skgid = append(meta.Skgid, tl)
-					}
+					tg := Tgid{IDByName: t[:]}
+					retExpr.Skgid = append(retExpr.Skgid, tg)
+					retExpr.Tokens = append(retExpr.Tokens, t[:]...)
 				}
 			} else {
-				isNum, nl := tokenToInt(tokens[0])
-				if isNum == false {
-					log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-				}
-
+				// can be single, ranged, or comma-separated
 				for _, n := range nl {
-					tl := Tgid{uint32(n[0]), uint32(n[1])}
-					meta.Skgid = append(meta.Skgid, tl)
+					tl := Tgid{ID: n}
+					retExpr.Skgid = append(retExpr.Skgid, tl)
+					retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[0])))
+					if n[1] >= 0 {
+						retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[1])))
+					}
 				}
 			}
 		}
@@ -619,17 +653,12 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta rtclassid cosmos
 	case CTokenMatchMetaRtClassID:
 		{
-			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
-				for _, t := range tl {
-					meta.Rtclassid = append(meta.Rtclassid, Trealm(t))
-				}
-			} else {
-				meta.Rtclassid = append(meta.Rtclassid, Trealm(tokens[0]))
+			retExpr.Tokens = append(retExpr.Tokens, token)
+			retExpr.Rtclassid = append(retExpr.Rtclassid, Trealm(tokens[0]))
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			if err != nil {
+				log.Panicf("Unable to find next token - %+v", rule)
 			}
 		}
 	//pkttype <type>	Packet type
@@ -638,17 +667,19 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta pkttype { broadcast, unicast, multicast}
 	case CTokenMatchMetaPktType:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
-			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
-				for _, t := range tl {
-					meta.Pkttype = append(meta.Pkttype, Tpkttype(t))
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
 				}
-			} else {
-				meta.Pkttype = append(meta.Pkttype, Tpkttype(tokens[0]))
+			}
+			csv := parseCommaSeparated(tokens[0])
+			for _, t := range csv {
+				retExpr.Pkttype = append(retExpr.Pkttype, Tpkttype(t[0]))
+				retExpr.Tokens = append(retExpr.Tokens, t[0])
 			}
 		}
 	//cpu <cpu index>	CPU ID
@@ -660,32 +691,25 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta cpu { 2-3, 5-7 }
 	case CTokenMatchMetaCPU:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
 			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
-				for _, t := range tl {
-					isNum, nl := tokenToInt(t)
-					if isNum == false {
-						log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-					}
-
-					for _, n := range nl {
-						tl := [2]uint32{uint32(n[0]), uint32(n[1])}
-						meta.Cpu = append(meta.Cpu, tl)
-					}
-				}
-			} else {
-				isNum, nl := tokenToInt(tokens[0])
-				if isNum == false {
-					log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-				}
-
-				for _, n := range nl {
-					tl := [2]uint32{uint32(n[0]), uint32(n[1])}
-					meta.Cpu = append(meta.Cpu, tl)
+			isNum, nl := tokenToInt(tokens[0]) // i.e. '2,3,4-7,8' -> {2,0}, {3,0}, {4,7}, {8,0}
+			if isNum == false {
+				log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
+			}
+			for _, n := range nl {
+				tl := [2]uint32{uint32(n[0]), uint32(n[1])}
+				retExpr.Cpu = append(retExpr.Cpu, tl)
+				retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[0])))
+				if n[1] >= 0 {
+					retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[1])))
 				}
 			}
 		}
@@ -699,41 +723,35 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta iifgroup {11-33}
 	case CTokenMatchMetaIIfGroup:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
 			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
-				for _, t := range tl {
-					if t == CTokenDefault {
-						meta.Iifgroup = append(meta.Iifgroup, Tdevgrouptype{Default: true})
-					} else {
-						isNum, nl := tokenToInt(t)
-						if isNum == false {
-							log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-						}
+			if tokens[0] == CTokenDefault {
+				retExpr.Iifgroup[0].Default = true
+				retExpr.Tokens = append(retExpr.Tokens, tokens...)
 
-						for _, n := range nl {
-							tl := [2]uint32{uint32(n[0]), uint32(n[1])}
-							dg := Tdevgrouptype{Num: tl}
-							meta.Iifgroup = append(meta.Iifgroup, dg)
-						}
-					}
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			} else {
-				if tokens[0] == CTokenDefault {
-					meta.Iifgroup = append(meta.Iifgroup, Tdevgrouptype{Default: true})
-				} else {
-					isNum, nl := tokenToInt(tokens[0])
-					if isNum == false {
-						log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-					}
-
-					for _, n := range nl {
-						tl := [2]uint32{uint32(n[0]), uint32(n[1])}
-						dg := Tdevgrouptype{Num: tl}
-						meta.Iifgroup = append(meta.Iifgroup, dg)
+				isNum, nl := tokenToInt(tokens[0]) // i.e. '2,3,4-7,8' -> {2,0}, {3,0}, {4,7}, {8,0}
+				if isNum == false {
+					log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
+				}
+				for _, n := range nl {
+					tl := [2]uint32{uint32(n[0]), uint32(n[1])}
+					dg := Tdevgrouptype{Num: tl}
+					retExpr.Iifgroup = append(retExpr.Iifgroup, dg)
+					retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[0])))
+					if n[1] >= 0 {
+						retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[1])))
 					}
 				}
 			}
@@ -748,38 +766,36 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta oifgroup {11-33}
 	case CTokenMatchMetaOIfGroup:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
 			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
-				for _, t := range tl {
-					if t == CTokenDefault {
-						meta.Iifgroup = append(meta.Iifgroup, Tdevgrouptype{Default: true})
-					} else {
-						isNum, nl := tokenToInt(t)
-						if isNum == false {
-							log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-						}
+			if tokens[0] == CTokenDefault {
+				retExpr.Oifgroup[0].Default = true
+				retExpr.Tokens = append(retExpr.Tokens, tokens...)
 
-						for _, n := range nl {
-							tl := [2]uint32{uint32(n[0]), uint32(n[1])}
-							dg := Tdevgrouptype{Num: tl}
-							meta.Oifgroup = append(meta.Oifgroup, dg)
-						}
-					}
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
 				}
 			} else {
-				isNum, nl := tokenToInt(tokens[0])
+				isNum, nl := tokenToInt(tokens[0]) // i.e. '2,3,4-7,8' -> {2,0}, {3,0}, {4,7}, {8,0}
 				if isNum == false {
 					log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
 				}
-
 				for _, n := range nl {
 					tl := [2]uint32{uint32(n[0]), uint32(n[1])}
 					dg := Tdevgrouptype{Num: tl}
-					meta.Oifgroup = append(meta.Oifgroup, dg)
+					retExpr.Oifgroup = append(retExpr.Oifgroup, dg)
+					retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[0])))
+					if n[1] >= 0 {
+						retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[1])))
+					}
 				}
 			}
 		}
@@ -792,32 +808,25 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 	//	meta cgroup {1048577-1048578}
 	case CTokenMatchMetaCGroup:
 		{
+			retExpr.Tokens = append(retExpr.Tokens, token)
 			if isEq, e := parseEquates(tokens[0]); isEq {
-				meta.EQ = e
+				retExpr.EQ = e
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				if err != nil {
+					log.Panicf("Unable to find next token - %+v", rule)
+				}
 			}
-			if len(rule.SubStatement) > 0 {
-				// the child is a list of interfaces
-				tl := stripRule(rule.SubStatement[0].Tokens)
-				for _, t := range tl {
-					isNum, nl := tokenToInt(t)
-					if isNum == false {
-						log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-					}
-
-					for _, n := range nl {
-						tl := [2]uint32{uint32(n[0]), uint32(n[1])}
-						meta.Cgroup = append(meta.Cgroup, tl)
-					}
-				}
-			} else {
-				isNum, nl := tokenToInt(tokens[0])
-				if isNum == false {
-					log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
-				}
-
-				for _, n := range nl {
-					tl := [2]uint32{uint32(n[0]), uint32(n[1])}
-					meta.Cgroup = append(meta.Cgroup, tl)
+			isNum, nl := tokenToInt(tokens[0]) // i.e. '2,3,4-7,8' -> {2,0}, {3,0}, {4,7}, {8,0}
+			if isNum == false {
+				log.Panicf("Expected numerical token but found '%v' token instead", tokens[0])
+			}
+			for _, n := range nl {
+				tl := [2]uint32{uint32(n[0]), uint32(n[1])}
+				retExpr.Cgroup = append(retExpr.Cgroup, tl)
+				retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[0])))
+				if n[1] >= 0 {
+					retExpr.Tokens = append(retExpr.Tokens, TToken(strconv.Itoa(n[1])))
 				}
 			}
 		}
@@ -827,6 +836,21 @@ func parseMeta(rule *TTextStatement) *TExpressionMeta {
 		}
 	} // switch
 
-	log.Panicf("'meta' expression '%s' (in %+v) not implemented", tokens, rule)
-	return nil
+	// now handle verdicts
+	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	if err == nil {
+		if IsVerdict(tokens[0]) {
+			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+			retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex)
+			if err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1); err != nil {
+				err = nil // we're done
+			}
+		} else {
+			log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
+		}
+	} else {
+		err = nil // we're done
+	}
+
+	return retExpr, err
 }

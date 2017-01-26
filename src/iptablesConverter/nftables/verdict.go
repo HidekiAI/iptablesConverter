@@ -21,7 +21,6 @@ The verdict statement alters control flow in the ruleset and issues policy decis
 // Statements represent actions to be performed. They can alter control flow (return, jump to a different chain, accept or drop the packet) or can perform actions, such as logging, rejecting a packet, etc.
 // Statements exist in two kinds. Terminal statements unconditionally terminate evaluation of the current rule, non-terminal statements either only conditionally or never terminate evaluation of the current rule, in other words,
 // they are passive from the ruleset evaluation perspective. There can be an arbitrary amount of non-terminal statements in a rule, but only a single terminal statement as the final statement.
-type TVerdict string
 
 const (
 	CVerdictAccept   TVerdict = "accept"
@@ -53,22 +52,29 @@ func IsVerdict(t TToken) bool {
 	}
 	return false
 }
+func isVerdict(rule *TTextStatement, iTokenIndexRO uint16) bool {
+	err, _, tokens, _ := getNextToken(rule, uint16(iTokenIndexRO), 1)
+	if err != nil {
+		log.Panicf("Unable to find next token - %+v", rule)
+	}
+	return IsVerdict(tokens[0])
+}
 
 // parse for default policy (verdicts for the entire chain)
-func parseDefaultPolicy(rule *TTextStatement) TVerdict {
-	var retPolicy TVerdict
+func parseDefaultPolicy(rule *TTextStatement, iTokenIndexRO uint16) (TVerdict, error) {
+	var retExpr TVerdict
 	if len(rule.Tokens) < 2 {
 		log.Panicf("Expected at least 2 tokens for 'policy' (in %+v)", rule)
 	}
 	// policy <policy>
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenChainPolicy {
 		//ret.Tokens = append(ret.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	} else {
@@ -78,45 +84,44 @@ func parseDefaultPolicy(rule *TTextStatement) TVerdict {
 	if IsVerdict(tokens[0]) == false {
 		log.Panicf("Expression statement '%+v' is not a verdict", rule.Tokens)
 	}
-	retPolicy = TVerdict(tokens[0])
-	return retPolicy
+	retExpr = TVerdict(tokens[0])
+	return retExpr, err
 }
 
 // Calling methods should make sure to first call IsVerdict() so that they won't get a panic
-func parseVerdict(rule *TTextStatement, iTokenIndexRO int) TStatementVerdict {
-	var retVS TStatementVerdict
-	if (len(rule.Tokens) == 0) || (rule.Tokens[0] == "") {
-		return retVS
+func parseVerdict(rule *TTextStatement, iTokenIndexRO uint16) (TStatementVerdict, error) {
+	var retExpr TStatementVerdict
+	if (rule != nil) && (len(rule.Tokens) == 0) || (rule.Tokens[0] == "") {
+		log.Panicf("There are no Tokens associated to rule:%+v", rule)
 	}
 
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, uint16(iTokenIndexRO), 1)
-	if haveToken == false {
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, uint16(iTokenIndexRO), 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if IsVerdict(tokens[0]) == false {
 		log.Panicf("Expression statement '%+v' is not a verdict", rule.Tokens)
 	}
-	retVS.Tokens = append(retVS.Tokens, tokens[0])
+	retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 
 	if logLevel > 1 {
-		log.Printf("Parsing verdict '%+v' (this: %+v)", rule.Tokens, rule)
+		log.Printf("\tParsing verdict '%+v' (this: %+v)", rule.Tokens, rule)
 	}
-	ret := TStatementVerdict{}
 
 	v := TVerdict(tokens[0])
 	switch v {
 	case CVerdictAccept, CVerdictContinue, CVerdictDrop, CVerdictQueue, CVerdictReturn:
-		ret.Verdict = v
+		retExpr.Verdict = v
 	case CVerdictGoto, CVerdictJump:
-		ret.Verdict = v
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
-			log.Panicf("Unable to find next token - %+v", rule)
+		retExpr.Verdict = v
+		if err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1); err != nil {
+			log.Panicf("Expected verdict to follow the token '%s' but instead found '%s' - %+v", v, tokens[0], rule)
 		}
-		ret.Chain = TChainName(tokens[0])
+		retExpr.Chain = TChainName(tokens[0])
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 	default:
 		log.Panicf("Unhandled verdict '%s' (in %+v)", v, rule)
 	}
 
-	return retVS
+	return retExpr, err
 }

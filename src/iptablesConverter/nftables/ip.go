@@ -79,36 +79,36 @@ Ip: ip match
 */
 
 // ip [IPv4 header field]
-type Tinetproto string // inet_proto
 type TExpressionHeaderIpv4 struct {
-	Version   uint8      // IP header version 4-bits
-	Hdrlength uint8      // IP header length including options 4-bits
-	Dscp      uint8      // Differentiated Services Code Point 6-bits
-	Ecn       uint8      // Explicit Congestion Notification 2-bits
-	Length    uint16     // Total packet length
-	Id        uint16     // IP ID
-	FragOff   uint16     // Fragment offset
-	Ttl       uint8      // 8-bits
-	Protocol  Tinetproto // inet_proto - Upper layer protocol
-	Checksum  uint16     // IP header checksum
-	Saddr     Tipv4addr  // source address ipv4_addr
-	Daddr     Tipv4addr  // Destination address ipv4_addr
+	Version   uint8        // IP header version 4-bits
+	Hdrlength uint8        // IP header length including options 4-bits
+	Dscp      uint8        // Differentiated Services Code Point 6-bits
+	Ecn       uint8        // Explicit Congestion Notification 2-bits
+	Length    uint16       // Total packet length
+	Id        uint16       // IP ID
+	FragOff   uint16       // Fragment offset
+	Ttl       uint8        // 8-bits
+	Protocol  Tinetproto   // inet_proto - Upper layer protocol
+	Checksum  uint16       // IP header checksum
+	Saddr     []TIPAddress // source address ipv4_addr (can be range-based with '-' or comma separated list)
+	Daddr     []TIPAddress // Destination address ipv4_addr
 
 	//EQ      TEquate
-	//Verdict TStatementVerdict
-	Tokens []TToken
+	Verdict TStatementVerdict
+	Counter TStatementCounter
+	Tokens  []TToken
 }
 
-func parsePayloadIp(rule *TTextStatement) *TExpressionHeaderIpv4 {
-	retIp := new(TExpressionHeaderIpv4)
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+func parsePayloadIp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHeaderIpv4, error) {
+	var retExpr TExpressionHeaderIpv4
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchIP {
-		retIp.Tokens = append(retIp.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
@@ -120,6 +120,42 @@ func parsePayloadIp(rule *TTextStatement) *TExpressionHeaderIpv4 {
 		}
 	}
 
-	log.Panicf("Not implemented: %+v", rule)
-	return nil
+	// now handle verdicts and counter
+	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	if err == nil {
+		done := false
+		for done == false {
+			// verdits usually goes last, so always check 'counter' token first
+			if isCounterRule(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else if isVerdict(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else {
+				err = nil // we're done
+				done = true
+				break
+			}
+		}
+	} else {
+		err = nil // we're done
+	}
+	return retExpr, err
 }

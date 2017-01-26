@@ -38,20 +38,21 @@ type TExpressionHeaderAH struct { // authentication header
 	Sequence  uint32       // Sequence number
 
 	//EQ      TEquate
-	//Verdict TStatementVerdict
-	Tokens []TToken
+	Verdict TStatementVerdict
+	Counter TStatementCounter
+	Tokens  []TToken
 }
 
-func parsePayloadAh(rule *TTextStatement) *TExpressionHeaderAH {
-	retAH := new(TExpressionHeaderAH)
-	haveToken, iTokenIndex, tokens, currentRule := getNextToken(rule, 0, 1)
-	if haveToken == false {
+func parsePayloadAh(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHeaderAH, error) {
+	var retExpr TExpressionHeaderAH
+	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchAH {
-		retAH.Tokens = append(retAH.Tokens, tokens[0])
-		haveToken, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
-		if haveToken == false {
+		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
@@ -63,6 +64,42 @@ func parsePayloadAh(rule *TTextStatement) *TExpressionHeaderAH {
 		}
 	}
 
-	log.Panicf("Not implemented: %+v", rule)
-	return nil
+	// now handle verdicts and counter
+	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	if err == nil {
+		done := false
+		for done == false {
+			// verdits usually goes last, so always check 'counter' token first
+			if isCounterRule(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else if isVerdict(currentRule, iTokenIndex) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
+					// skip forward to next token
+					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					if (err != nil) || (currentRule == nil) {
+						err = nil // we're done
+						done = true
+						break
+					}
+				}
+			} else {
+				err = nil // we're done
+				done = true
+				break
+			}
+		}
+	} else {
+		err = nil // we're done
+	}
+	return retExpr, err
 }
