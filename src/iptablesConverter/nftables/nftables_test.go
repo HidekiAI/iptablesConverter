@@ -147,10 +147,20 @@ func TestTextBlock(t *testing.T) {
 
 func TestDeserializeFromFile(t *testing.T) {
 	path := "nft.rules"
-	nft := Read(path)
-	t.Logf("%+v", nft)
+	nft, err := Read(path)
+	t.Logf("%+v - %+v", nft, err)
 	// assume the rules files only has three tables (ip, ip6, and inet)
 	if len(nft.Tables) != 3 {
+		t.Logf("Expected 3 Tables, got %d instead", len(nft.Tables))
 		t.Fail()
+	}
+}
+
+func TestSerializeToFile(t *testing.T) {
+	inpath := "nft.rules"
+	outpath := "/tmp/nft_unittest.rules"
+	if nft, err := Read(inpath); err == nil {
+		// write it back out
+		nft.Write(outpath)
 	}
 }

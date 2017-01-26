@@ -1,7 +1,10 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
+	"path/filepath"
+	"runtime"
 )
 
 // statement is the action performed when the packet match the rule. It could be terminal and non-terminal. In a certain rule we can consider several non-terminal statements but only a single terminal statement.
@@ -43,19 +46,43 @@ type TStatementVerdict struct {
 }
 
 func IsVerdict(t TToken) bool {
+	caller := ""
+	// Caller(1) means the callee of this method (skip 1 stack)
+	if _, f, ln, ok := runtime.Caller(1); ok {
+		_, fn := filepath.Split(f)
+		caller = fmt.Sprintf("%s:%d", fn, ln)
+	}
 	switch TVerdict(t) {
 	case CVerdictAccept, CVerdictContinue, CVerdictDrop, CVerdictQueue, CVerdictReturn:
+		if logLevel > 2 {
+			log.Printf("\t\t#%s: IsVerdict(%s): true", caller, t)
+		}
 		return true
 	case CVerdictGoto, CVerdictJump:
 		// TODO: make sure the token that follows exists (we don't track chainName so cannot verify, just make sure there is somewhere it can jump/goto)
+		if logLevel > 2 {
+			log.Printf("\t\t#%s: IsVerdict(%s): true", caller, t)
+		}
 		return true
+	}
+	if logLevel > 2 {
+		log.Printf("\t\t#%s: IsVerdict(%s): false", caller, t)
 	}
 	return false
 }
 func isVerdict(rule *TTextStatement, iTokenIndexRO uint16) bool {
-	err, _, tokens, _ := getNextToken(rule, uint16(iTokenIndexRO), 1)
+	caller := ""
+	// Caller(1) means the callee of this method (skip 1 stack)
+	if _, f, ln, ok := runtime.Caller(1); ok {
+		_, fn := filepath.Split(f)
+		caller = fmt.Sprintf("%s:%d", fn, ln)
+	}
+	tokens, _, _, err := rule.getNextToken(uint16(iTokenIndexRO), 1, true)
+	if logLevel > 2 {
+		log.Printf("\t#%s: Calling IsVerdict(%v) @ Index=%d", caller, tokens, iTokenIndexRO)
+	}
 	if err != nil {
-		log.Panicf("Unable to find next token - %+v", rule)
+		log.Panicf("%s: Unable to find next token - %+v", caller, rule)
 	}
 	return IsVerdict(tokens[0])
 }
@@ -67,13 +94,13 @@ func parseDefaultPolicy(rule *TTextStatement, iTokenIndexRO uint16) (TVerdict, e
 		log.Panicf("Expected at least 2 tokens for 'policy' (in %+v)", rule)
 	}
 	// policy <policy>
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenChainPolicy {
 		//ret.Tokens = append(ret.Tokens, tokens[0])
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
@@ -90,32 +117,40 @@ func parseDefaultPolicy(rule *TTextStatement, iTokenIndexRO uint16) (TVerdict, e
 
 // Calling methods should make sure to first call IsVerdict() so that they won't get a panic
 func parseVerdict(rule *TTextStatement, iTokenIndexRO uint16) (TStatementVerdict, error) {
+	caller := ""
+	// Caller(1) means the callee of this method (skip 1 stack)
+	if _, f, ln, ok := runtime.Caller(1); ok {
+		_, fn := filepath.Split(f)
+		caller = fmt.Sprintf("%s:%d", fn, ln)
+	}
 	var retExpr TStatementVerdict
-	if (rule != nil) && (len(rule.Tokens) == 0) || (rule.Tokens[0] == "") {
-		log.Panicf("There are no Tokens associated to rule:%+v", rule)
+	if rule == nil {
+		return retExpr, fmt.Errorf("%s: Rule expression passed is nil", caller)
 	}
 
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, uint16(iTokenIndexRO), 1)
-	if err != nil {
-		log.Panicf("Unable to find next token - %+v", rule)
+	if (len(rule.Tokens) == 0) || (rule.Tokens[0] == "") || (iTokenIndexRO > uint16(len(rule.Tokens))) {
+		log.Panicf("%s: There are no Tokens associated to rule:%+v", caller, rule)
 	}
+	tokens, _, _, err := rule.getNextToken(uint16(iTokenIndexRO), 1, true)
+	v := TVerdict(tokens[0])
 	if IsVerdict(tokens[0]) == false {
-		log.Panicf("Expression statement '%+v' is not a verdict", rule.Tokens)
+		log.Panicf("%s: Expression '%+v' is not a verdict (%+v)", caller, tokens, rule)
 	}
 	retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 
 	if logLevel > 1 {
-		log.Printf("\tParsing verdict '%+v' (this: %+v)", rule.Tokens, rule)
+		log.Printf("\t#%s: Parsing verdict '%+v' (this: %+v)", caller, rule.Tokens, rule)
 	}
 
-	v := TVerdict(tokens[0])
 	switch v {
 	case CVerdictAccept, CVerdictContinue, CVerdictDrop, CVerdictQueue, CVerdictReturn:
 		retExpr.Verdict = v
 	case CVerdictGoto, CVerdictJump:
 		retExpr.Verdict = v
-		if err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1); err != nil {
-			log.Panicf("Expected verdict to follow the token '%s' but instead found '%s' - %+v", v, tokens[0], rule)
+		tokens, _, _, nextErr := rule.getNextToken(iTokenIndexRO, 1, true)
+		if nextErr != nil {
+			log.Panicf("%s: Expected verdict to follow the token '%s' but instead found '%s' - %+v", caller, v, tokens[0], rule)
+			err = nextErr
 		}
 		retExpr.Chain = TChainName(tokens[0])
 		retExpr.Tokens = append(retExpr.Tokens, tokens[0])

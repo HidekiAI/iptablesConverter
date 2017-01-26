@@ -46,13 +46,13 @@ type TExpressionHeaderUdpLite struct {
 
 func parsePayloadUdpLite(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHeaderUdpLite, error) {
 	var retExpr TExpressionHeaderUdpLite
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchUDPLite {
 		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
@@ -66,7 +66,7 @@ func parsePayloadUdpLite(rule *TTextStatement, iTokenIndexRO uint16) (TExpressio
 	}
 
 	// now handle verdicts and counter
-	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	tokens, _, _, err = currentRule.getNextToken(iTokenIndex, 1, true)
 	if err == nil {
 		done := false
 		lastRule := currentRule
@@ -88,7 +88,7 @@ func parsePayloadUdpLite(rule *TTextStatement, iTokenIndexRO uint16) (TExpressio
 				done = true
 				break
 			}
-			if err, iLastIndex, tokens, lastRule = getNextToken(currentRule, iTokenIndex, 1); err != nil {
+			if tokens, iLastIndex, lastRule, err = currentRule.getNextToken(iTokenIndex, 1, true); err != nil {
 				err = nil // we're done
 				done = true
 			}

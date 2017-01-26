@@ -17,14 +17,12 @@ func ReadIPTables(path string) iptables.Iptables {
 	return ipt
 }
 
-func ReadNFTables(path string) nftables.Nftables {
-	nft := nftables.Read(path)
-	return nft
+func ReadNFTables(path string) (nftables.Nftables, error) {
+	return nftables.Read(path)
 }
 
-func ReadPfilters(path string) packetfilter.Pfilter {
-	pf := packetfilter.Read(path)
-	return pf
+func ReadPfilters(path string) (packetfilter.Pfilter, error) {
+	return packetfilter.Read(path)
 }
 
 func ConvertToNFTables(ipt iptables.Iptables) nftables.Nftables {

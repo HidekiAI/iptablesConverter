@@ -17,11 +17,17 @@ func ReadIPTables6Test(t *testing.T) {
 }
 
 func ReadNFTablesTest(t *testing.T) {
-	nft := ReadNFTables("nf4.rules")
+	nft, err := ReadNFTables("nf4.rules")
 	t.Log(nft)
+	if err != nil {
+		t.Fail()
+	}
 }
 
 func ReadPfiltersTest(t *testing.T) {
-	pft := ReadPfilters("pf4.rules")
+	pft, err := ReadPfilters("pf4.rules")
 	t.Log(pft)
+	if err != nil {
+		t.Fail()
+	}
 }

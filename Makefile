@@ -55,5 +55,8 @@ vendor_update: vendor_get
 # http://godoc.org/code.google.com/p/go.tools/cmd/vet
 # go get code.google.com/p/go.tools/cmd/vet
 vet:
+	# copies iptables.a to (local) pkg dir so vet won't complain
+	go install -v  iptablesConverter
 	go vet -v -x iptablesConverter/...
-	go tool vet -v -shadowstrict src/iptablesConverter
+	#go tool vet -v -shadowstrict src/iptablesConverter
+	go tool vet -v -all src/iptablesConverter

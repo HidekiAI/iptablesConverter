@@ -153,13 +153,13 @@ type TExpressionConntrack struct {
 
 func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConntrack, error) {
 	var retExpr TExpressionConntrack
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchCT {
 		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
@@ -172,7 +172,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 			//		ct direction original
 			//		ct direction != original
 			//		ct direction {reply, original}
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -192,7 +192,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 			//		ct expiration != 33s-45s
 			//		ct expiration {33, 55, 67, 88}
 			//		ct expiration { 1m7s, 33s, 55s, 1m28s}
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -203,7 +203,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 		{
 			//	helper "<helper>"	Helper associated with the connection
 			//		ct helper "ftp"
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -232,7 +232,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 			//		ct mark set 0x11
 			//		ct mark set mark
 			//		ct mark set mark map { 1 : 10, 2 : 20, 3 : 30 }
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -264,7 +264,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 			//		ct original proto-dst 22
 			//	[original | reply] proto-src <port>
 			//		ct reply proto-src 53
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -281,14 +281,14 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 			// ct state != {
 			//	new, untracked }
 			//  counter accept
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
 			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -305,7 +305,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 			//		ct status expected
 			//		ct status != expected
 			//		ct status {expected,seen-reply,assured,confirmed,snat,dnat,dying}
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -319,8 +319,8 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 	}
 
 	// now handle verdicts and counter
-	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
-	if err == nil {
+	var nextErr error
+	if tokens, _, _, nextErr = currentRule.getNextToken(iTokenIndex, 1, true); nextErr == nil {
 		done := false
 		for done == false {
 			// verdits usually goes last, so always check 'counter' token first
@@ -328,7 +328,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
 					// skip forward to next token
-					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {
 						err = nil // we're done
 						done = true
@@ -339,7 +339,7 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
 					// skip forward to next token
-					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {
 						err = nil // we're done
 						done = true
@@ -352,8 +352,6 @@ func parseConnTrack(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionConn
 				break
 			}
 		}
-	} else {
-		err = nil // we're done
 	}
 
 	return retExpr, err

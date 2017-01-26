@@ -1,7 +1,10 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
+	"path/filepath"
+	"runtime"
 	"strconv"
 )
 
@@ -216,8 +219,8 @@ type TExpressionMeta struct {
 	Skuid     []Tuid          // skuid			uid					UID associated with originating socket
 	Skgid     []Tgid          // skgid			gid					GID associated with originating socket
 	Rtclassid []Trealm        // rtclassid		realm				Routing realm
-	Ibriport  []string        // ibriport		string				Input bridge interface name
-	Obriport  []string        // obriport		string				Output bridge interface name
+	Ibriport  []TToken        // ibriport		string				Input bridge interface name
+	Obriport  []TToken        // obriport		string				Output bridge interface name
 	Pkttype   []Tpkttype      // pkttype		pkt_type			packet type
 	Cpu       [][2]uint32     // cpu			integer (32 bits)	cpu number processing the packet
 	Iifgroup  []Tdevgrouptype // iifgroup		devgroup_type		incoming device group
@@ -231,12 +234,12 @@ type TExpressionMeta struct {
 
 // meta statements seems to be allowed without the 'meta' keyword
 func isMetaRule(rule *TTextStatement, iTokenIndexRO uint16) bool {
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchMeta {
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
@@ -273,23 +276,30 @@ func IsMetaRule(token TToken) bool {
 }
 
 func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, error) {
+	caller := ""
+	// Caller(1) means the callee of this method (skip 1 stack)
+	if _, f, ln, ok := runtime.Caller(1); ok {
+		_, fn := filepath.Split(f)
+		caller = fmt.Sprintf("%s:%d", fn, ln)
+	}
+
 	var retExpr TExpressionMeta
 	if isMetaRule(rule, tokenIndexRO) == false {
-		log.Panicf("Statement '%+v' is not a match 'meta' based rule!", rule)
+		log.Panicf("%s: Statement '%+v' is not a match 'meta' based rule!", caller, rule)
 	}
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, tokenIndexRO, 1)
+	tokens, iTokenIndex, currentRule, err := rule.getNextToken(tokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchMeta {
 		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
-	token := tokens[0]
-	err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+	token := tokens[0] // preserve it for switch statement so we can get next tokens[]
+	tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
@@ -306,7 +316,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -329,7 +339,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -349,7 +359,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -370,7 +380,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -391,7 +401,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -412,7 +422,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -437,7 +447,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -465,7 +475,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -486,7 +496,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -507,7 +517,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -541,14 +551,14 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
 				startIndex++
 			}
 			// grab at most next 4 tokens
-			err, _, tokens, currentRule = getNextToken(currentRule, startIndex, 4)
+			tokens, _, currentRule, err = currentRule.getNextToken(startIndex, 4, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -573,7 +583,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -619,7 +629,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -656,7 +666,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			retExpr.Tokens = append(retExpr.Tokens, token)
 			retExpr.Rtclassid = append(retExpr.Rtclassid, Trealm(tokens[0]))
 			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-			err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+			tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}
@@ -671,7 +681,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -695,7 +705,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -727,7 +737,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -736,7 +746,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 				retExpr.Iifgroup[0].Default = true
 				retExpr.Tokens = append(retExpr.Tokens, tokens...)
 
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -770,7 +780,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -779,7 +789,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 				retExpr.Oifgroup[0].Default = true
 				retExpr.Tokens = append(retExpr.Tokens, tokens...)
 
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -812,7 +822,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -837,19 +847,20 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 	} // switch
 
 	// now handle verdicts
-	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
-	if err == nil {
-		if IsVerdict(tokens[0]) {
-			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-			retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex)
-			if err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1); err != nil {
-				err = nil // we're done
+	if currentRule != nil {
+		var nextErr error
+		// get next tokens[] but don't alter iTokenIndex or currentRule because parseX() expects "Next"
+		if tokens, _, _, nextErr = currentRule.getNextToken(iTokenIndex, 1, true); nextErr == nil {
+			if IsVerdict(tokens[0]) {
+				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+				retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex)
+				if tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true); err != nil {
+					err = nil // we're done
+				}
+			} else {
+				log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
 			}
-		} else {
-			log.Panicf("Unhandled Token(%v) encountered - %+v", tokens, currentRule)
 		}
-	} else {
-		err = nil // we're done
 	}
 
 	return retExpr, err

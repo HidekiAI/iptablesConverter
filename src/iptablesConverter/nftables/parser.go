@@ -3,6 +3,8 @@ package nftables
 import (
 	"fmt"
 	"log"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -34,7 +36,76 @@ type TTextStatement struct {
 	Depth        uint16            // mainly for debugging and printing, but can be used to determine siblings
 }
 
-// TODO: Use type TToken and CToken* for consistencies in the future
+func (thisRO TTextStatement) ToTokens() []TToken {
+	var ret []TToken
+	if logLevel > 3 {
+		// Caller(1) means the callee of this method (skip 1 stack)
+		if _, f, ln, ok := runtime.Caller(1); ok {
+			_, fn := filepath.Split(f)
+			caller1 := fmt.Sprintf("%s:%d", fn, ln)
+			caller2 := ""
+			if _, f, ln, ok := runtime.Caller(2); ok {
+				_, fn := filepath.Split(f)
+				caller2 = fmt.Sprintf("%s:%d", fn, ln)
+			}
+			log.Printf("\t\t\t>> %s > %s:[%12p]ToTokens: %+v", caller2, caller1, &thisRO, thisRO)
+		}
+	}
+	for _, s := range thisRO.Tokens {
+		ret = append(ret, TToken(strings.TrimSpace(s)))
+	}
+	return ret
+}
+func (thisRO TTextStatement) ToToken(i int) TToken {
+	caller := ""
+	// Caller(1) means the callee of this method (skip 1 stack)
+	if _, f, ln, ok := runtime.Caller(1); ok {
+		_, fn := filepath.Split(f)
+		caller = fmt.Sprintf("%s:%d", fn, ln)
+	}
+
+	tl := thisRO.ToTokens()
+	if i < len(tl) {
+		if logLevel > 2 {
+			log.Printf("\t\t> %s:ToToken(%d) -> Tokens:%v", caller, i, tl)
+		}
+		return tl[i]
+	} else {
+		log.Printf("%s:WARNING: Index=%d exceeds Token Count: %d - %+v", caller, i, len(tl), thisRO)
+	}
+	return TToken("")
+}
+func (thisRO TTextStatement) ToTokensRange(start int, stop int) []TToken {
+	tl := thisRO.ToTokens()
+	if (start < len(tl)) && (stop <= len(tl)) {
+		return tl[start:stop]
+	} else {
+		caller := ""
+		// Caller(1) means the callee of this method (skip 1 stack)
+		if _, f, ln, ok := runtime.Caller(1); ok {
+			_, fn := filepath.Split(f)
+			caller = fmt.Sprintf("%s:%d", fn, ln)
+		}
+		log.Printf("%s:WARNING: Index Start=%d,Stop=%d is outside the range of Token Count: %d - %+v", caller, start, stop, len(tl), thisRO)
+	}
+	return []TToken{}
+}
+func (pThis *TTextStatement) AppendToken(s string) {
+	if s != "" && len(s) > 0 {
+		pThis.Tokens = append(pThis.Tokens, s)
+	}
+}
+func (thisRO TTextStatement) stripRule() []TToken {
+	var sr []TToken
+	slist := thisRO.ToTokens()
+	for _, s := range slist {
+		if s == CTokenOB || s == CTokenCB || s == CTokenSC {
+			continue
+		}
+		sr = append(sr, s)
+	}
+	return sr
+}
 
 const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 
@@ -576,7 +647,9 @@ func MakeStatements(textBody string) []*TTextStatement {
 			//	table ip filter{...}
 			//	table ip6 filter{...}
 			// it will only return from recursions at root, so it's safe to create new blocks each time here
-			//log.Printf("\n=== Block at line %3d (depth: %d) TokenCount:%d-[%+v]", iLine, tokenizedLines[iLine].depth, len(tokenizedLines[iLine].tokens), tokenizedLines[iLine])
+			if logLevel > 3 {
+				log.Printf("\n=== Block at line %3d (depth: %d) TokenCount:%d-[%+v]", iLine, tokenizedLines[iLine].depth, len(tokenizedLines[iLine].tokens), tokenizedLines[iLine])
+			}
 			pParent := new(TTextStatement) // pParent.Parent is ALWAYS nil
 			retStatements = append(retStatements, pParent)
 
@@ -638,7 +711,7 @@ func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, toke
 		for ; (iTokenIndex < uint16(len(linesRO[iLineIndex].tokens))) && (int(iLineIndex) < len(linesRO)); iTokenIndex++ {
 			// whether the token is '{', '}', or ';', record the token before we proceed
 			token := linesRO[iLineIndex].tokens[iTokenIndex]
-			pCurrentBlock.Tokens = append(pCurrentBlock.Tokens, token)
+			pCurrentBlock.AppendToken(token)
 
 			logMsg += fmt.Sprintf("[%d]%s ", iTokenIndex, token)
 

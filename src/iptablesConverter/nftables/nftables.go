@@ -10,7 +10,8 @@ import (
 //	1: info
 //	2: debug
 //	3: verbose debug
-const logLevel = 3
+//	4: trace (more verbose)
+const logLevel = 1
 
 // The types and fields comes from 'man 8 nft'
 // Conventions:
@@ -21,8 +22,14 @@ const logLevel = 3
 // implementations are complete, it may be necessary to refactor for legibility.  But for now, rely
 // on 'gocode'/Vim-go and Syntastic (or any other code-completion/intellisense methods) to make your life
 // easier...
-
 type TToken string
+
+func (t TToken) FromString(s string) {
+	t = TToken(s)
+}
+func (t TToken) ToString() string {
+	return string(t)
+}
 
 const (
 	CTokenTable   TToken = "table"
@@ -198,22 +205,26 @@ type TChain struct {
 
 // Rules are constructed from two kinds of components according to a set of grammatical
 // rules: expressions and statements.
-/*
-* handle is an internal number that identifies a certain rule.
-* position is an internal number that it's used to insert a rule before a certain handle.
-		% nft add rule [<family>] <table> <chain> <matches> <statements>
-		% nft insert rule [<family>] <table> <chain> [position <position>] <matches> <statements>
-		% nft replace rule [<family>] <table> <chain> [handle <handle>] <matches> <statements>
-		% nft delete rule [<family>] <table> <chain> [handle <handle>]
-*/
-type TRuleCommand string
+type IRule interface {
+	Deserialize() TRule
+	Serialize() TToken
+}
+type TRule struct {
+	SRule []TToken // Mainly for debug purpose, each line of rules in a TTable, it is array so it can be tokenized (i.e. differences between "This is a string" as single token versus 4 tokens)
 
-const (
-	CRuleCommandAdd     TRuleCommand = "add"
-	CRuleCommandInsert  TRuleCommand = "insert"
-	CRuleCommandDelete  TRuleCommand = "delete"
-	CRuleCommandReplace TRuleCommand = "replace"
-)
+	// type
+	Policy TVerdict
+	Type   TRuleType
+
+	// Expression
+	Meta      TExpressionMeta
+	Payload   TRulePayload
+	ConnTrack TExpressionConntrack
+	Counter   TStatementCounter
+
+	// Statement
+	Statement TRuleStatement
+}
 
 // Statement is the action performed when the packet match the rule. It could be terminal and non-terminal.
 // In a certain rule we can consider several non-terminal statements but only a single terminal statement.
@@ -260,6 +271,7 @@ type TRulePayload struct {
 	Mh     TMH
 	Rt     TRouting
 }
+
 type TRuleStatement struct {
 	Verdict TStatementVerdict
 	Log     TStatementLog
@@ -269,22 +281,6 @@ type TRuleStatement struct {
 	Limit   TStatementLimit
 	Nat     TStatementNat
 	Queue   TStatementQueue
-}
-type TRule struct {
-	SRule []string // Mainly for debug purpose, each line of rules in a TTable, it is array so it can be tokenized (i.e. differences between "This is a string" as single token versus 4 tokens)
-
-	// type
-	Policy TVerdict
-	Type   TRuleType
-
-	// Expression
-	Meta      TExpressionMeta
-	Payload   TRulePayload
-	ConnTrack TExpressionConntrack
-	Counter   TStatementCounter
-
-	// Statement
-	Statement TRuleStatement
 }
 
 // The link layer address type is used for link layer addresses. Link layer addresses are specified as a variable amount of groups of two hexadecimal digits separated using colons (:).

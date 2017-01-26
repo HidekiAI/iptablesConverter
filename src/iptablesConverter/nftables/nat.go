@@ -68,19 +68,19 @@ type TStatementNat struct {
 
 func parseStatementNat(rule *TTextStatement, iTokenIndexRO uint16) (TStatementNat, error) {
 	var retExpr TStatementNat
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenStatementSNAT {
 		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	} else if tokens[0] == CTokenStatementDNAT {
 		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
@@ -94,7 +94,7 @@ func parseStatementNat(rule *TTextStatement, iTokenIndexRO uint16) (TStatementNa
 	}
 
 	// now handle verdicts and counter
-	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	tokens, _, _, err = currentRule.getNextToken(iTokenIndex, 1, true)
 	if err == nil {
 		done := false
 		for done == false {
@@ -103,7 +103,7 @@ func parseStatementNat(rule *TTextStatement, iTokenIndexRO uint16) (TStatementNa
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
 					// skip forward to next token
-					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {
 						err = nil // we're done
 						done = true
@@ -114,7 +114,7 @@ func parseStatementNat(rule *TTextStatement, iTokenIndexRO uint16) (TStatementNa
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
 					// skip forward to next token
-					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {
 						err = nil // we're done
 						done = true

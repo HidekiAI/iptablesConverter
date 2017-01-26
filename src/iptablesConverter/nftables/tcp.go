@@ -90,19 +90,19 @@ type TExpressionHeaderTcp struct {
 
 func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHeaderTcp, error) {
 	var retExpr TExpressionHeaderTcp
-	err, iTokenIndex, tokens, currentRule := getNextToken(rule, iTokenIndexRO, 1)
+	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchTCP {
 		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-		err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
 		}
 	}
 	token := tokens[0]
-	err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+	tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
@@ -122,7 +122,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -130,7 +130,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			retExpr.Dport = []Tinetservice{Tinetservice{ServicePort: [2]TToken{}}}
 			if tokens[0] == CTokenVMap {
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -182,7 +182,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -198,7 +198,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -216,7 +216,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -234,7 +234,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -251,7 +251,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -270,7 +270,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -287,7 +287,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 			if isEq, e := parseEquates(tokens[0]); isEq {
 				retExpr.EQ = e
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+				tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 				if err != nil {
 					log.Panicf("Unable to find next token - %+v", rule)
 				}
@@ -306,7 +306,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 		}
 	}
 	// now handle verdicts and counter
-	err, _, tokens, _ = getNextToken(currentRule, iTokenIndex, 1)
+	tokens, _, _, err = currentRule.getNextToken(iTokenIndex, 1, true)
 	if err == nil {
 		done := false
 		for done == false {
@@ -315,7 +315,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
 					// skip forward to next token
-					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {
 						err = nil // we're done
 						done = true
@@ -326,7 +326,7 @@ func parsePayloadTcp(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHea
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
 				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
 					// skip forward to next token
-					err, iTokenIndex, tokens, currentRule = getNextToken(currentRule, iTokenIndex, 1)
+					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {
 						err = nil // we're done
 						done = true
