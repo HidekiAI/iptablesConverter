@@ -1,7 +1,10 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
+	"path/filepath"
+	"runtime"
 )
 
 // statement is the action performed when the packet match the rule. It could be terminal and non-terminal. In a certain rule we can consider several non-terminal statements but only a single terminal statement.
@@ -24,7 +27,7 @@ group <value> [queue-threshold <value>] [snaplen <value>] [prefix "<prefix>"]
 		log prefix aaaaa-aaaaaa group 2 snaplen 33
 		log group 2 queue-threshold 2
 		log group 2 snaplen 33
-G STATEMENT
+LOG STATEMENT
        log [prefix quoted_string] [level syslog-level] [flags log-flags]
        log group nflog_group [prefix quoted_string] [queue-threshold value] [snaplen size]
 
@@ -78,21 +81,121 @@ G STATEMENT
        ip6 filter output log flags all
 
 */
+const (
+	CTokenLogLevel             TToken = "level"
+	CTokenLogSyslogLevel       TToken = "syslog-level"
+	CTokenLogPrefix            TToken = "prefix"
+	CTokenLogGroup             TToken = "group"
+	CTokenLogSnaplen           TToken = "snaplen"
+	CTokenLogQueueThreshold    TToken = "queue-threshold"
+	CTokenLogLevelOver         TToken = "over"
+	CTokenLogLevelBurst        TToken = "burst"
+	CTokenLogFlags             TToken = "flags"
+	CTokenLogFlagTcp           TToken = "tcp"
+	CTokenLogFlagSequence      TToken = "sequence"
+	CTokenLogFlagOptions       TToken = "options"
+	CTokenLogFlagSkuid         TToken = "skuid"
+	CTokenLogFlagEther         TToken = "ether"
+	CTokenLogFlagAll           TToken = "all"
+	CTokenLogLevelSyslogEmerg  TToken = "emerg"
+	CTokenLogLevelSyslogAlert  TToken = "alert"
+	CTokenLogLevelSyslogCrit   TToken = "crit"
+	CTokenLogLevelSyslogErr    TToken = "err"
+	CTokenLogLevelSyslogWarn   TToken = "warn"
+	CTokenLogLevelSyslogNotice TToken = "notice"
+	CTokenLogLevelSyslogInfo   TToken = "info"
+	CTokenLogLevelSyslogDebug  TToken = "debug"
+)
+
+type TlogPrefix TToken
+type TlogGroup uint16
+type TlogSnaplen uint32
+type TlogQThreshold uint32
+type TLogFlag []TToken
 type TStatementLog struct {
-	//EQ      TEquate
-	Verdict TStatementVerdict
-	Counter TStatementCounter
-	Tokens  []TToken
+	Expr TChainedExpressions
+
+	//Prefix         *TPrefix   // quoted string: Log message prefix
+	//Level          *TToken   // string: emerge, alert, crit, err, warn [default], notice, info, debug
+	//Group          *TGroup   // NFLOG group to send messages to
+	//Snaplen        *TSnaplen   // Length of packet payload to include in netlink message
+	//QueueThreshold *TQThreshold   // Number of packets to queue inside the kernel before sending them to userspace
+	//Flag           *[]TToken // 'tcp', 'sequence', 'options', 'skuid', 'ether', 'all'
+	//EQ             *TEquate
+	//Verdict        *TStatementVerdict
+	//Counter        *TStatementCounter
 }
 
-func (rule *TTextStatement) parseStatementLog(iTokenIndexRO uint16) (TStatementLog, error) {
+func (expr *TStatementLog) HasExpression() bool {
+	if expr != nil {
+		return (expr.Expr.Expressions != nil) && (len(expr.Expr.Expressions) > 0)
+	}
+	return false
+}
+func (expr *TStatementLog) GetTokens() []TToken {
+	var ret []TToken
+	if expr.HasExpression() {
+		for _, e := range expr.Expr.Expressions {
+			switch tExpr := e.(type) {
+			default:
+				switch tE := e.(type) {
+				case TStatementVerdict:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementLog:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementCounter:
+					ret = append(ret, GetTokens(tE)...)
+				case TEquate:
+					ret = append(ret, GetTokens(tE)...)
+				default:
+					caller := ""
+					// Caller(1) means the callee of this method (skip 1 stack)
+					if _, f, ln, ok := runtime.Caller(1); ok {
+						_, fn := filepath.Split(f)
+						caller = fmt.Sprintf("%s:%d", fn, ln)
+					}
+					log.Panicf("%s: Unhandled type '%T' encountered (contents: '%+v')", caller, tE, tE)
+				}
+			}
+		}
+	}
+	return ret
+}
+
+func (rule *TTextStatement) parseStatementLog(iTokenIndexRO uint16) (*TStatementLog, error) {
 	var retExpr TStatementLog
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
+
+	//# log the UID which generated the packet and ip options
+	//	ip filter output log flags skuid flags ip options
+	//# log the tcp sequence numbers and tcp options from the TCP packet
+	//	ip filter output log flags tcp sequence,options
+	//# enable all supported log flags
+	//	ip6 filter output log flags all
+	//
+	//#log [prefix quoted_string] [level syslog-level] [flags log-flags]
+	//level [over] <value> <unit> [burst <value> <unit>]	Log level
+	//		log
+	//		log level emerg
+	//		log level alert
+	//		log level crit
+	//		log level err
+	//		log level warn
+	//		log level notice
+	//		log level info
+	//		log level debug
+	//#	log group nflog_group [prefix quoted_string] [queue-threshold value] [snaplen size]
+	//group <value> [queue-threshold <value>] [snaplen <value>] [prefix "<prefix>"]
+	//		log prefix aaaaa-aaaaaa group 2 snaplen 33
+	//		log group 2 queue-threshold 2
+	//		log group 2 snaplen 33
+	// standalone:
+	//  counter log drop #'log' and 'drop' are a separate statement in which, it collects counter, logs it, then drops the payload
 	if tokens[0] == CTokenStatementLog {
-		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		retExpr.Expr.SetType(tokens[0], rule.Depth)
 		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
@@ -100,48 +203,39 @@ func (rule *TTextStatement) parseStatementLog(iTokenIndexRO uint16) (TStatementL
 	}
 
 	switch tokens[0] {
+	case CTokenLogLevel:
+		{
+			log.Panicf("Unhandled token '%v' for 'ah' (authentication header) (in %+v)", tokens, rule)
+		}
+
+	case CTokenLogGroup:
+		{
+			log.Panicf("Unhandled token '%v' for 'ah' (authentication header) (in %+v)", tokens, rule)
+		}
+
+	case CTokenLogPrefix:
+		{
+			log.Panicf("Unhandled token '%v' for 'ah' (authentication header) (in %+v)", tokens, rule)
+		}
+
+	case CTokenLogQueueThreshold:
+		{
+			log.Panicf("Unhandled token '%v' for 'ah' (authentication header) (in %+v)", tokens, rule)
+		}
+
+	case CTokenLogSnaplen:
+		{
+			log.Panicf("Unhandled token '%v' for 'ah' (authentication header) (in %+v)", tokens, rule)
+		}
+
 	default:
 		{
-			log.Panicf("Unhandled token '%v' for 'log' (in %+v)", tokens, rule)
+			// Note: 'log' without any parameter is allowed
 		}
 	}
 
-	// now handle verdicts and counter
-	tokens, _, _, err = currentRule.getNextToken(iTokenIndex, 1, true)
-	if err == nil {
-		done := false
-		for done == false {
-			// verdits usually goes last, so always check 'counter' token first
-			if currentRule.isCounterRule(iTokenIndex) {
-				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Counter, err = currentRule.parseCounter(iTokenIndex); err == nil {
-					// skip forward to next token
-					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
-					if (err != nil) || (currentRule == nil) {
-						err = nil // we're done
-						done = true
-						break
-					}
-				}
-			} else if currentRule.isVerdict(iTokenIndex) {
-				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Verdict, err = currentRule.parseVerdict(iTokenIndex); err == nil {
-					// skip forward to next token
-					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
-					if (err != nil) || (currentRule == nil) {
-						err = nil // we're done
-						done = true
-						break
-					}
-				}
-			} else {
-				err = nil // we're done
-				done = true
-				break
-			}
-		}
-	} else {
-		err = nil // we're done
-	}
-	return retExpr, err
+	// now handle verdicts and counter chains
+	err = retExpr.Expr.ParseTailChains(currentRule, iTokenIndex)
+
+	return &retExpr, err
 }

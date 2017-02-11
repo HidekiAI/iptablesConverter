@@ -17,7 +17,7 @@ func ReadIPTables(path string) iptables.Iptables {
 	return ipt
 }
 
-func ReadNFTables(path string) (nftables.Nftables, error) {
+func ReadNFTables(path string) (*nftables.Nftables, error) {
 	return nftables.Read(path)
 }
 

@@ -1,0 +1,15 @@
+%s/\.EQ = &e/\.Expr\.Append(\&e)/g
+%s/\.Expr\.Expressions = append(/\.Expr\.Append(/g
+%s/n\[1\] >= 0/len(n) > 1/g
+%s/parseCommaSeparated(tokens\[0\])/tokens\[0\].parseCommaSeparated()/g
+%s/parseEquates(tokens\[0\])/tokens\[0\].parseEquates()/g
+%s/parseVMap(tokens\[0\])/tokens\[0\].parseVMap()/g
+%s/retExpr\.Expressions/retExpr\.Expr/g
+%s/retExpr\.Expressions\.Tokens\.Append/retExpr\.Expr\.AppendTokens/g
+%s/retExpr\.Expr\.Tokens\.Append(/retExpr\.Expr\.AppendTokens(/g
+%s/retExpr\.Expr\.Tokens\.AppendToken(/retExpr\.Expr\.AppendToken(/g
+%s/*retExpr\./retExpr\.Expr\./g
+%s/ret\.Tokens\.ToString()/ret\.Expr\.TokensToString()/g
+%s/\[\]string/\[\]TToken/c
+%s/tokenToInt(tokens\[0\])/tokens\[0\].tokenToInt()/g
+%s/tokenToIP(tokens\[0\])/tokens\[0\].tokenToIP()/g

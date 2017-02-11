@@ -60,7 +60,6 @@ func TestStripCommentAndTokenizing(t *testing.T) {
 }
 
 func testPrintTextBlockRecursive(t *testing.T, tsPtr *TTextStatement, si int) {
-	const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 	if tsPtr != nil {
 		outStr := fmt.Sprintf("%3d:(%16p:%16p)%s", si, tsPtr.Parent, tsPtr, tabs[:tsPtr.Depth])
 		if len(tsPtr.Tokens) > 0 {
@@ -154,12 +153,24 @@ func TestDeserializeFromFile(t *testing.T) {
 		t.Logf("Expected 3 Tables, got %d instead", len(nft.Tables))
 		t.Fail()
 	}
+	// walk the nodes
+	for kTable, vTable := range nft.Tables {
+		if len(vTable.Chains) == 0 {
+			t.Logf("Expected at least 1 chained rule for table '%s'", kTable)
+			t.Fail()
+		}
+		t.Logf("=== %s (%s): %d chains", kTable, vTable.Family, len(vTable.Chains))
+		for kChain, vChain := range vTable.Chains {
+			t.Logf("\t%s:%+v", kChain, vChain.Rule)
+		}
+	}
 }
 
 func TestSerializeToFile(t *testing.T) {
 	inpath := "nft.rules"
 	outpath := "/tmp/nft_unittest.rules"
 	if nft, err := Read(inpath); err == nil {
+		t.Logf("%+v - %+v", nft, err)
 		// write it back out
 		nft.Write(outpath)
 	}

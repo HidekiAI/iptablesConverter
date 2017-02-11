@@ -1,7 +1,10 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
+	"path/filepath"
+	"runtime"
 )
 
 // Matches are clues used to access to certain packet infromation and reate filters according to them.
@@ -37,26 +40,66 @@ udp match
 */
 
 // udp [UDP header field]
+type TudpSport Tinetservice
+type TudpDport Tinetservice
+type TudpLength uint16
+type TudpChecksum uint16
 type TExpressionHeaderUdp struct {
-	Sport    Tinetservice
-	Dport    Tinetservice
-	Length   uint16
-	Checksum uint16
+	Expr TChainedExpressions
 
-	//EQ      TEquate
-	Verdict TStatementVerdict
-	Counter TStatementCounter
-	Tokens  []TToken
+	//Sport    *Tinetservice
+	//Dport    *Tinetservice
+	//Length   *uint16
+	//Checksum *uint16
+	//EQ       *TEquate
+	//Verdict  *TStatementVerdict
+	//Counter  *TStatementCounter
 }
 
-func (rule *TTextStatement) parsePayloadUdp(iTokenIndexRO uint16) (TExpressionHeaderUdp, error) {
+func (expr *TExpressionHeaderUdp) HasExpression() bool {
+	if expr != nil {
+		return (expr.Expr.Expressions != nil) && (len(expr.Expr.Expressions) > 0)
+	}
+	return false
+}
+func (expr *TExpressionHeaderUdp) GetTokens() []TToken {
+	var ret []TToken
+	if expr.HasExpression() {
+		for _, e := range expr.Expr.Expressions {
+			switch tExpr := e.(type) {
+			default:
+				switch tE := e.(type) {
+				case TStatementVerdict:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementLog:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementCounter:
+					ret = append(ret, GetTokens(tE)...)
+				case TEquate:
+					ret = append(ret, GetTokens(tE)...)
+				default:
+					caller := ""
+					// Caller(1) means the callee of this method (skip 1 stack)
+					if _, f, ln, ok := runtime.Caller(1); ok {
+						_, fn := filepath.Split(f)
+						caller = fmt.Sprintf("%s:%d", fn, ln)
+					}
+					log.Panicf("%s: Unhandled type '%T' encountered (contents: '%+v')", caller, tE, tE)
+				}
+			}
+		}
+	}
+	return ret
+}
+
+func (rule *TTextStatement) parsePayloadUdp(iTokenIndexRO uint16) (*TExpressionHeaderUdp, error) {
 	var retExpr TExpressionHeaderUdp
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchUDP {
-		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		retExpr.Expr.SetType(tokens[0], rule.Depth)
 		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
@@ -70,42 +113,8 @@ func (rule *TTextStatement) parsePayloadUdp(iTokenIndexRO uint16) (TExpressionHe
 		}
 	}
 
-	// now handle verdicts and counter
-	tokens, _, _, err = currentRule.getNextToken(iTokenIndex, 1, true)
-	if err == nil {
-		done := false
-		for done == false {
-			// verdits usually goes last, so always check 'counter' token first
-			if currentRule.isCounterRule(iTokenIndex) {
-				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Counter, err = currentRule.parseCounter(iTokenIndex); err == nil {
-					// skip forward to next token
-					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
-					if (err != nil) || (currentRule == nil) {
-						err = nil // we're done
-						done = true
-						break
-					}
-				}
-			} else if currentRule.isVerdict(iTokenIndex) {
-				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Verdict, err = currentRule.parseVerdict(iTokenIndex); err == nil {
-					// skip forward to next token
-					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
-					if (err != nil) || (currentRule == nil) {
-						err = nil // we're done
-						done = true
-						break
-					}
-				}
-			} else {
-				err = nil // we're done
-				done = true
-				break
-			}
-		}
-	} else {
-		err = nil // we're done
-	}
-	return retExpr, err
+	// now handle verdicts and counter chains
+	err = retExpr.Expr.ParseTailChains(currentRule, iTokenIndex)
+
+	return &retExpr, err
 }

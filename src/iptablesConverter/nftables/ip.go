@@ -1,7 +1,10 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
+	"path/filepath"
+	"runtime"
 )
 
 // Matches are clues used to access to certain packet infromation and reate filters according to them.
@@ -79,34 +82,82 @@ Ip: ip match
 */
 
 // ip [IPv4 header field]
+type Tipv4Version uint8
+type Tipv4HdrLength uint8
+type Tipv4Dscp uint8
+type Tipv4Ecn uint8
+type Tipv4Length uint16
+type Tipv4Id uint16
+type Tipv4FragOff uint16
+type Tipv4TTL uint8
+type Tipv4Protocol Tinetproto
+type Tipv4Checksum uint16
+type Tipv4SAddr []TIPAddress
+type Tipv4DAddr []TIPAddress
 type TExpressionHeaderIpv4 struct {
-	Version   uint8        // IP header version 4-bits
-	Hdrlength uint8        // IP header length including options 4-bits
-	Dscp      uint8        // Differentiated Services Code Point 6-bits
-	Ecn       uint8        // Explicit Congestion Notification 2-bits
-	Length    uint16       // Total packet length
-	Id        uint16       // IP ID
-	FragOff   uint16       // Fragment offset
-	Ttl       uint8        // 8-bits
-	Protocol  Tinetproto   // inet_proto - Upper layer protocol
-	Checksum  uint16       // IP header checksum
-	Saddr     []TIPAddress // source address ipv4_addr (can be range-based with '-' or comma separated list)
-	Daddr     []TIPAddress // Destination address ipv4_addr
+	Expr TChainedExpressions
 
-	//EQ      TEquate
-	Verdict TStatementVerdict
-	Counter TStatementCounter
-	Tokens  []TToken
+	//Version   *uint8        // IP header version 4-bits
+	//Hdrlength *uint8        // IP header length including options 4-bits
+	//Dscp      *uint8        // Differentiated Services Code Point 6-bits
+	//Ecn       *uint8        // Explicit Congestion Notification 2-bits
+	//Length    *uint16       // Total packet length
+	//Id        *uint16       // IP ID
+	//FragOff   *uint16       // Fragment offset
+	//Ttl       *uint8        // 8-bits
+	//Protocol  *Tinetproto   // inet_proto - Upper layer protocol
+	//Checksum  *uint16       // IP header checksum
+	//Saddr     *[]TIPAddress // source address ipv4_addr (can be range-based with '-' or comma separated list)
+	//Daddr     *[]TIPAddress // Destination address ipv4_addr
+	//EQ        *TEquate
+	//Verdict   *TStatementVerdict
+	//Counter   *TStatementCounter
 }
 
-func (rule *TTextStatement) parsePayloadIp(iTokenIndexRO uint16) (TExpressionHeaderIpv4, error) {
+func (expr *TExpressionHeaderIpv4) HasExpression() bool {
+	if expr != nil {
+		return (expr.Expr.Expressions != nil) && (len(expr.Expr.Expressions) > 0)
+	}
+	return false
+}
+func (expr *TExpressionHeaderIpv4) GetTokens() []TToken {
+	var ret []TToken
+	if expr.HasExpression() {
+		for _, e := range expr.Expr.Expressions {
+			switch tExpr := e.(type) {
+			default:
+				switch tE := e.(type) {
+				case TStatementVerdict:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementLog:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementCounter:
+					ret = append(ret, GetTokens(tE)...)
+				case TEquate:
+					ret = append(ret, GetTokens(tE)...)
+				default:
+					caller := ""
+					// Caller(1) means the callee of this method (skip 1 stack)
+					if _, f, ln, ok := runtime.Caller(1); ok {
+						_, fn := filepath.Split(f)
+						caller = fmt.Sprintf("%s:%d", fn, ln)
+					}
+					log.Panicf("%s: Unhandled type '%T' encountered (contents: '%+v')", caller, tE, tE)
+				}
+			}
+		}
+	}
+	return ret
+}
+
+func (rule *TTextStatement) parsePayloadIp(iTokenIndexRO uint16) (*TExpressionHeaderIpv4, error) {
 	var retExpr TExpressionHeaderIpv4
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
 	}
 	if tokens[0] == CTokenMatchIP {
-		retExpr.Tokens = append(retExpr.Tokens, tokens[0])
+		retExpr.Expr.SetType(tokens[0], rule.Depth)
 		tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 		if err != nil {
 			log.Panicf("Unable to find next token - %+v", rule)
@@ -120,42 +171,8 @@ func (rule *TTextStatement) parsePayloadIp(iTokenIndexRO uint16) (TExpressionHea
 		}
 	}
 
-	// now handle verdicts and counter
-	tokens, _, _, err = currentRule.getNextToken(iTokenIndex, 1, true)
-	if err == nil {
-		done := false
-		for done == false {
-			// verdits usually goes last, so always check 'counter' token first
-			if currentRule.isCounterRule(iTokenIndex) {
-				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Counter, err = currentRule.parseCounter(iTokenIndex); err == nil {
-					// skip forward to next token
-					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
-					if (err != nil) || (currentRule == nil) {
-						err = nil // we're done
-						done = true
-						break
-					}
-				}
-			} else if currentRule.isVerdict(iTokenIndex) {
-				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Verdict, err = currentRule.parseVerdict(iTokenIndex); err == nil {
-					// skip forward to next token
-					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
-					if (err != nil) || (currentRule == nil) {
-						err = nil // we're done
-						done = true
-						break
-					}
-				}
-			} else {
-				err = nil // we're done
-				done = true
-				break
-			}
-		}
-	} else {
-		err = nil // we're done
-	}
-	return retExpr, err
+	// now handle verdicts and counter chains
+	err = retExpr.Expr.ParseTailChains(currentRule, iTokenIndex)
+
+	return &retExpr, err
 }

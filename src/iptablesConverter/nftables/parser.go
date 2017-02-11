@@ -38,7 +38,7 @@ type TTextStatement struct {
 
 func (thisRO TTextStatement) ToTokens() []TToken {
 	var ret []TToken
-	if logLevel > 3 {
+	if CLogLevel > CLogLevelVerbose {
 		// Caller(1) means the callee of this method (skip 1 stack)
 		if _, f, ln, ok := runtime.Caller(1); ok {
 			_, fn := filepath.Split(f)
@@ -66,7 +66,7 @@ func (thisRO TTextStatement) ToToken(i int) TToken {
 
 	tl := thisRO.ToTokens()
 	if i < len(tl) {
-		if logLevel > 2 {
+		if CLogLevel > CLogLevelDebug {
 			log.Printf("\t\t> %s:ToToken(%d) -> Tokens:%v", caller, i, tl)
 		}
 		return tl[i]
@@ -106,8 +106,6 @@ func (thisRO TTextStatement) stripRule() []TToken {
 	}
 	return sr
 }
-
-const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
 
 // Strips out comments from a line, use this before you tokenize a line
 func stripComment(line string) string {
@@ -161,11 +159,11 @@ func splitNonWhitespaced(tokens []string) []string {
 			continue
 		}
 
-		sO := splitWithKeyInPlace(t, "{")
+		sO := splitWithKeyInPlace(t, CTokenOB.ToString())
 		for _, sO1 := range sO {
-			sC := splitWithKeyInPlace(sO1, "}")
+			sC := splitWithKeyInPlace(sO1, CTokenCB.ToString())
 			for _, sC1 := range sC {
-				sSC := splitWithKeyInPlace(sC1, ";")
+				sSC := splitWithKeyInPlace(sC1, CTokenSC.ToString())
 				for _, sSC1 := range sSC {
 					retList = append(retList, sSC1)
 				}
@@ -179,7 +177,7 @@ func splitAndRejoin(token string, find string, tokens []string, i int) []string 
 	split := splitWithKeyInPlace(token, find)
 	tail := append(split, tokens[i+1:]...)
 	retStrList := append(tokens[:i], tail...)
-	if (logLevel > 1) && (len(tokens) != len(retStrList)) {
+	if (CLogLevel > CLogLevelInfo) && (len(tokens) != len(retStrList)) {
 		log.Printf("splitAndRejoin(Key='%s', Token='%s')\n\tAfter split count(%d) -> %+v\n\ttail(%d) -> %+v\n\t\tBefore(%2d):%+v\n\t\t After(%2d):%+v\n",
 			find, token, len(split), split, len(tail), tail, len(tokens), tokens, len(retStrList), retStrList)
 	}
@@ -187,7 +185,7 @@ func splitAndRejoin(token string, find string, tokens []string, i int) []string 
 }
 
 // if any tokens that are unquoted has the delimiter, then join it
-// i.e. if tokens={"{", "a", ",", "b", ",", "c-d", ",", "e", "}"} (count=9), then
+// i.e. if tokens={"{", "a", ",", "b", ",", "c-d", ",", "e", CTokenCB} (count=9), then
 // we want the "a,b,c-d,e" to be a single token if search key is ",", so that result is:
 // tokens={"{", "a,b,c-d,e", "}"} (count=3)
 func joinDelimited(tokens []string, key string) []string {
@@ -261,7 +259,7 @@ func joinDelimited(tokens []string, key string) []string {
 	if len(retList) == 0 {
 		retList = tokens
 	}
-	if (logLevel > 1) && foundKey {
+	if (CLogLevel > CLogLevelInfo) && foundKey {
 		log.Printf("joinDelimited(Key:'%s')\n\tRequest:%+v(%2d)\n\t Joined:%+v(%2d)",
 			key, tokens, len(tokens), retList, len(retList))
 	}
@@ -313,7 +311,7 @@ func tokenizeLineByQuotedText(line string) []string {
 			if strings.HasSuffix(qStr, "\";") {
 				// split the closing quote + semicolon into two tokens
 				retStrList = append(retStrList, qStr[:len(qStr)-1])
-				retStrList = append(retStrList, ";")
+				retStrList = append(retStrList, CTokenSC.ToString())
 
 			} else {
 				retStrList = append(retStrList, qStr)
@@ -328,26 +326,26 @@ func tokenizeLineByQuotedText(line string) []string {
 				continue
 			}
 			// ignore standalone tokens
-			if token == ";" || token == "{" || token == "}" {
+			if token == CTokenSC.ToString() || token == CTokenOB.ToString() || token == CTokenCB.ToString() {
 				continue
 			}
 
-			if strings.Contains(token, "{") {
-				retStrList = splitAndRejoin(token, "{", retStrList, i)
-
-				// try again: because next line has been joined to current, dec index
-				i--
-				continue
-			}
-			if strings.Contains(token, "}") {
-				retStrList = splitAndRejoin(token, "}", retStrList, i)
+			if strings.Contains(token, CTokenOB.ToString()) {
+				retStrList = splitAndRejoin(token, CTokenOB.ToString(), retStrList, i)
 
 				// try again: because next line has been joined to current, dec index
 				i--
 				continue
 			}
-			if strings.Contains(token, ";") {
-				retStrList = splitAndRejoin(token, ";", retStrList, i)
+			if strings.Contains(token, CTokenCB.ToString()) {
+				retStrList = splitAndRejoin(token, CTokenCB.ToString(), retStrList, i)
+
+				// try again: because next line has been joined to current, dec index
+				i--
+				continue
+			}
+			if strings.Contains(token, CTokenSC.ToString()) {
+				retStrList = splitAndRejoin(token, CTokenSC.ToString(), retStrList, i)
 
 				// try again: because next line has been joined to current, dec index
 				i--
@@ -356,9 +354,9 @@ func tokenizeLineByQuotedText(line string) []string {
 		}
 
 		// Now, make sure expressions such as 'a, b ,c - d, e,f' are treated as single expression 'a,b,c-d,e,f'
-		retStrList = joinDelimited(retStrList, ":") // i.e. for vmap '{ 22:accept, 80 : drop, https:accept}'
-		retStrList = joinDelimited(retStrList, "-")
-		retStrList = joinDelimited(retStrList, ",") // do "," last so all types of lists are first combined
+		retStrList = joinDelimited(retStrList, CTokenColon.ToString()) // i.e. for vmap '{ 22:accept, 80 : drop, https:accept}'
+		retStrList = joinDelimited(retStrList, CTokenRange.ToString()) // warning: There are tokens such as 'echo-request' (Icmpv6) that has '-' as part of the TToken!
+		retStrList = joinDelimited(retStrList, CTokenCS.ToString())    // do "," last so all types of lists are first combined
 		//log.Printf("\tDone tokenizing to %d tokens\n", len(retStrList))
 	}
 	return retStrList
@@ -386,18 +384,18 @@ func joinFieldsIfQuoted(strList []string) (string, int) {
 		retString = retString + strList[0] // including the punctuation
 		retCount++
 		// Check if a single field/word comment has ending quotes on the same word
-		if strings.HasSuffix(strList[0], punctuation) || strings.HasSuffix(strList[0], punctuation+";") {
+		if strings.HasSuffix(strList[0], punctuation) || strings.HasSuffix(strList[0], punctuation+CTokenSC.ToString()) {
 			foundClosing = true
 		} else {
 			for _, s := range strList[1:] {
 				retCount++
 				retString = retString + " " + s
-				if strings.HasSuffix(s, punctuation) || strings.HasSuffix(s, punctuation+";") {
+				if strings.HasSuffix(s, punctuation) || strings.HasSuffix(s, punctuation+CTokenSC.ToString()) {
 					// Let's be careful about escaped punctuations inside the string, for example
 					// a string of '"This has \"double quotes\" in it"' would be tokenized as:
 					//	["This], [has], [\"double], [quotes\"], [in], [it"]
 					// in which case, we want the one with the [it"] and not the middle ones
-					if strings.HasSuffix(s, "\\"+punctuation) || strings.HasSuffix(s, "\\"+punctuation+";") {
+					if strings.HasSuffix(s, "\\"+punctuation) || strings.HasSuffix(s, "\\"+punctuation+CTokenSC.ToString()) {
 						continue
 					}
 					foundClosing = true
@@ -416,7 +414,7 @@ func joinFieldsIfQuoted(strList []string) (string, int) {
 	}
 	// Could have probably done strings.Join(slice[:retCount], " ") here...
 	//log.Printf("\t\t\t> Parsed '%s' (count: %d) from '%s'\n", retString, retCount, strList)
-	//if strings.HasSuffix(retString, ";") {
+	//if strings.HasSuffix(retString, CTokenSC) {
 	//	retString = retString[:len(retString)-1] + " ;"
 	//}
 	return retString, retCount
@@ -480,8 +478,8 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 				}
 				at = append(at, t)
 
-				// treat each encounter of ";" as newline
-				if (t == ";") || (t == "{") {
+				// treat each encounter of CTokenSC as newline
+				if (t == CTokenSC.ToString()) || (t == CTokenOB.ToString()) {
 					// new statement
 					if (len(at) > 0) && (at[0][0] != 0) {
 						t := depthedStatement{tokens: at}
@@ -494,7 +492,7 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 				// for example 'ct state { established, new, accepted } accept'
 				// needs to have the verdict 'accept' be associted to conntrack
 				// state expression
-				if t == "}" {
+				if t == CTokenCB.ToString() {
 					// new line _ONLY_ if no tokens follow, else we need it on same line
 					if ((ti + 1) >= len(tokens)) && (len(at) > 0) && (at[0][0] != 0) {
 						t := depthedStatement{tokens: at}
@@ -527,11 +525,11 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 		lineStatement := fmt.Sprintf("#%3d:%2d:%s", lineNum, tokenizedLines[lineNum].depth, tabs[:tokenizedLines[lineNum].depth])
 		for iToken := 0; iToken < len(tokens); iToken++ {
 			token := tokens[iToken]
-			if token == "{" {
+			if token == CTokenOB.ToString() {
 				currentDepth++
 				lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 			}
-			if token == "}" {
+			if token == CTokenCB.ToString() {
 				currentDepth--
 				if currentDepth < 0 {
 					log.Panicf("Encountered mismatched number of '{' for each '}' block")
@@ -558,7 +556,7 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 			if token == "" {
 				continue
 			}
-			if token == ";" {
+			if token == CTokenSC.ToString() {
 				lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 				continue
 			}
@@ -567,10 +565,10 @@ func tokenizeMultiStatements(bodyOfText string) []depthedStatement {
 				lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 				continue
 			}
-			//if strings.Contains(token, ";") {
+			//if strings.Contains(token, CTokenSC) {
 			//	lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
 			//	// found one, so do some insertion
-			//	tokenizedLines[lineNum].tokens = splitAndAppend(token, ";", tokens, iToken)
+			//	tokenizedLines[lineNum].tokens = splitAndAppend(token, CTokenSC, tokens, iToken)
 			//	token = tokens[iToken]
 			//}
 			lineStatement += "(" + strconv.Itoa(iToken) + ",'" + token + "'), "
@@ -647,7 +645,7 @@ func MakeStatements(textBody string) []*TTextStatement {
 			//	table ip filter{...}
 			//	table ip6 filter{...}
 			// it will only return from recursions at root, so it's safe to create new blocks each time here
-			if logLevel > 3 {
+			if CLogLevel > CLogLevelVerbose {
 				log.Printf("\n=== Block at line %3d (depth: %d) TokenCount:%d-[%+v]", iLine, tokenizedLines[iLine].depth, len(tokenizedLines[iLine].tokens), tokenizedLines[iLine])
 			}
 			pParent := new(TTextStatement) // pParent.Parent is ALWAYS nil
@@ -715,8 +713,8 @@ func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, toke
 
 			logMsg += fmt.Sprintf("[%d]%s ", iTokenIndex, token)
 
-			switch token {
-			case "{":
+			switch TToken(token) {
+			case CTokenOB:
 				{
 					// prepare for next token
 					iTokenIndex++ // next token
@@ -725,7 +723,7 @@ func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, toke
 						iLineIndex++
 						iTokenIndex = 0
 					}
-					if logLevel > 0 {
+					if CLogLevel > CLogLevelNone {
 						log.Print(logMsg)
 					}
 					logMsg = ""
@@ -736,28 +734,28 @@ func makeStatementRecursive(linesRO []depthedStatement, lineIndexRO uint16, toke
 					continue // see what we have as next token (or wheter to move to next line)
 				}
 
-			case "}":
+			case CTokenCB:
 				{
-					// pop (return to caller of matching "{" with current LineIndex and TokenIndex)
+					// pop (return to caller of matching CTokenOB with current LineIndex and TokenIndex)
 					// let the calling method continue on from where it took off (next token and line)
-					if logLevel > 0 {
+					if CLogLevel > CLogLevelNone {
 						log.Print(logMsg)
 					}
 					logMsg = ""
 					return iLineIndex, iTokenIndex
 				}
 
-			case ";":
+			case CTokenSC:
 				{
 					// only create next block if some token follows the ';'
 					if int(iTokenIndex+1) < len(linesRO[iLineIndex].tokens) {
-						// for token ";" it is same parent (append it to Parent), just new statement/line
+						// for token CTokenSC it is same parent (append it to Parent), just new statement/line
 						pCurrentBlock = appendNewBlockStatement(pCurrentBlock.Parent, iLineIndex+1, linesRO)
 					}
 				}
-			} // switch toke
+			} // switch token
 		} // for iTokenIndex
-		if (logLevel > 0) && (logMsg != "") {
+		if (CLogLevel > CLogLevelNone) && (logMsg != "") {
 			log.Print(logMsg)
 		}
 

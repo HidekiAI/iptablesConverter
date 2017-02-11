@@ -1,17 +1,29 @@
 package nftables
 
 import (
+	"fmt"
 	"log"
 	"net"
+	"path/filepath"
+	"reflect"
+	"runtime"
 )
 
-// Set logLevel to:
-//	0: no logging
-//	1: info
-//	2: debug
-//	3: verbose debug
-//	4: trace (more verbose)
-const logLevel = 1
+type TLogLevel uint8
+
+const (
+	// TODO: Make the constants based on syslog instead
+	CLogLevelNone       TLogLevel = 0
+	CLogLevelInfo       TLogLevel = 1
+	CLogLevelDebug      TLogLevel = 2
+	CLogLevelVerbose    TLogLevel = 3
+	CLogLevelDiagnostic TLogLevel = 4
+)
+
+// TODO: Rather than having this as constant, it may be ideal to be a variable which can be set via command line arg...
+const CLogLevel = CLogLevelInfo
+const tabs = "|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|:|"
+const fileTabs = "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
 
 // The types and fields comes from 'man 8 nft'
 // Conventions:
@@ -24,17 +36,34 @@ const logLevel = 1
 // easier...
 type TToken string
 
-func (t TToken) FromString(s string) {
-	t = TToken(s)
+func (t TToken) FromString(s string) error {
+	if s != "" {
+		t = TToken(s)
+		return nil
+	}
+	return fmt.Errorf("Empty string should not be tokenized")
 }
 func (t TToken) ToString() string {
 	return string(t)
+}
+
+//func (tl []TToken) ToString() string {
+func TokensToString(tl []TToken) string {
+	retStr := ""
+	for i, t := range tl {
+		retStr += t.ToString()
+		if i+1 < len(tl) {
+			retStr += " "
+		}
+	}
+	return retStr
 }
 
 const (
 	CTokenTable   TToken = "table"
 	CTokenChain   TToken = "chain"
 	CTokenSC      TToken = ";"
+	CTokenColon   TToken = ":"
 	CTokenOB      TToken = "{"
 	CTokenCB      TToken = "}"
 	CTokenHash    TToken = "#"
@@ -109,15 +138,15 @@ const (
 
 type TEquate struct {
 	Token TToken
-	NE    bool
-	GT    bool
-	GE    bool
-	LT    bool
-	LE    bool
+	NE    *bool
+	GT    *bool
+	GE    *bool
+	LT    *bool
+	LE    *bool
 }
 
 // Address families determine the type of packets which are processed. For each address family the kernel contains so called hooks at specific stages of the packet processing paths, which invoke nftables if rules for these hooks exist.
-type TAddressFamily string
+type TAddressFamily TToken
 
 // All nftables objects exist in address family specific namespaces, therefore all identifiers include an address family. If an identifier is specified without an address family, the ip family is used by default.
 const (
@@ -130,7 +159,7 @@ const (
 	CAddressFamilyUndefined TAddressFamily = ""
 )
 
-type THookName string
+type THookName TToken
 
 const (
 	// hook refers to an specific stage of the packet while it's being processed through the kernel. More info in Netfilter hooks.
@@ -155,8 +184,8 @@ type TFamilyHook struct {
 // The address family must be one of ip, ip6, inet, arp, bridge, netdev.  The inet address family is a
 // dummy family which is used to create hybrid IPv4/IPv6 tables.  When no address family is specified,
 // ip is used by default.
-type TTableName string
-type TTableCommand string
+type TTableName TToken
+type TTableCommand TToken
 
 const (
 	CTableCommandAdd    TTableCommand = "add"
@@ -176,9 +205,9 @@ type TTable struct {
 //Chains are containers for rules. They exist in two kinds, base chains and regular chains.
 // A base chain is an entry point for packets from the networking stack, a regular chain
 // may be used as jump target and is used for better rule organization.
-type TChainName string
-type TChainCommand string
-type TChainType string
+type TChainName TToken
+type TChainCommand TToken
+type TChainType TToken
 
 const (
 	CChainCommandAdd    TChainCommand = "add"
@@ -198,32 +227,288 @@ const (
 	CChainTypeNat    TChainType = "nat"
 )
 
-type TChain struct {
-	Rule TRule
-	Next *TChain // chains are ordered
-}
-
 // Rules are constructed from two kinds of components according to a set of grammatical
 // rules: expressions and statements.
-type IRule interface {
-	Deserialize() TRule
-	Serialize() TToken
+//type TRule struct {
+//	Policy    *TVerdict
+//	Type      *TRuleType
+//	Meta      *TExpressionMeta
+//	Payload   *TRulePayload
+//	ConnTrack *TExpressionConntrack
+//	Counter   *TStatementCounter
+//	Statement *TRuleStatement
+//}
+type TChain struct {
+	// NOTE: Unlinke TChainedExpressions, TChain only requore rooted Rule instead of arrayed []interface{} list
+	Rule interface{}   // chain-rule of any type (must use switch-type of 'pChain.Rule.(type)' to determine dynamically)
+	Next *TChain       // chains are ordered
+	Type TExprTypeInfo // Each expression has to be known of its type
 }
-type TRule struct {
-	SRule []TToken // Mainly for debug purpose, each line of rules in a TTable, it is array so it can be tokenized (i.e. differences between "This is a string" as single token versus 4 tokens)
 
-	// type
-	Policy TVerdict
-	Type   TRuleType
+func (pC *TChain) HasExpression() bool {
+	if pC != nil {
+		return (pC.Rule != nil)
+	}
+	return false
+}
+func (pC *TChain) GetTokens() []TToken {
+	var retTokens []TToken
+	if pC.HasExpression() {
+		switch tRule := pC.Rule.(type) {
+		case *TVerdict:
+			//retTokens = append(retTokens, []TToken{tRule.Type.Type, TToken(*tRule)})
+			retTokens = append(retTokens, GetTokens(tRule)...)
+		case *TRuleType:
+			retTokens = append(retTokens, GetTokens(tRule)...)
+		case *TExpressionMeta:
+			retTokens = append(retTokens, tRule.GetTokens()...)
+		case *TRulePayload:
+			retTokens = append(retTokens, tRule.GetTokens()...)
+		case *TExpressionConntrack:
+			retTokens = append(retTokens, tRule.GetTokens()...)
+		case *TStatementCounter:
+			retTokens = append(retTokens, tRule.GetTokens()...)
+		case *TRuleStatement:
+			retTokens = append(retTokens, tRule.GetTokens()...)
+		default:
+			switch tE := pC.Rule.(type) {
+			case TStatementVerdict:
+				retTokens = append(retTokens, GetTokens(tE)...)
+			case TStatementLog:
+				retTokens = append(retTokens, GetTokens(tE)...)
+			case TStatementCounter:
+				retTokens = append(retTokens, GetTokens(tE)...)
+			case TEquate:
+				retTokens = append(retTokens, GetTokens(tE)...)
+			default:
+				caller := ""
+				// Caller(1) means the callee of this method (skip 1 stack)
+				if _, f, ln, ok := runtime.Caller(1); ok {
+					_, fn := filepath.Split(f)
+					caller = fmt.Sprintf("%s:%d", fn, ln)
+				}
+				log.Panicf("%s: Unhandled type '%T' encountered (contents: '%+v')", caller, tE, tE)
+			}
+		}
+	}
+	return retTokens
+}
 
-	// Expression
-	Meta      TExpressionMeta
-	Payload   TRulePayload
-	ConnTrack TExpressionConntrack
-	Counter   TStatementCounter
+// TChainedExpressions should be contained by struts such that each struct
+// may be able to have its own Interface such that methods:
+//		func (expr *TExpressionHeaderUdpLite) HasExpression() bool
+//		func (expr *TExpressionHeaderUdpLite) GetTokens() []TToken
+// can be implemented specific to each statement types.  Also, because the
+// switch-type needs to distinguish its uniqueness, you will have to make sure
+// to create a distinct type (for example, if a struct has signature as follows:
+//	type MyStruct struct {
+//		Foo string
+//		Bar string
+//	}
+// To distinguish the differences of two strings, it will have to be typed
+//	type TFoo string
+//	type TBar string
+//	type MyStruct struct {
+//		Expr TChainedExpression
+//	}
+// And implementations would be:
+//	switch t := mystructi.Expression.(type) {
+//		case TFoo, *TFoo, []TFoo, []*TFoo:
+//			// do something with t.*
+//		case TBar, *TBar, []TBar, []*TBar:
+//			// do something with t.*
+//		default:
+//			log.Panicf("Unhandled type '%T'", t)
+//	}
+type TExprTypeInfo struct {
+	Type    TToken // i.e. 'ct', 'meta', etc
+	SubType TToken // sub-type of an expression, i.e. for 'ct mark', 'mark' is the Type for conntrack 'ct' expression
+	Depth   uint16 // for debug purpose
+}
 
-	// Statement
-	Statement TRuleStatement
+func (eti TExprTypeInfo) ToString() string {
+	return eti.Type.ToString()
+}
+func (eti TExprTypeInfo) FromString(s string) error {
+	return eti.Type.FromString(s)
+}
+func (pType *TExprTypeInfo) Set(t TToken, s TToken, d uint16) {
+	if pType != nil {
+		pType.Type = t
+		pType.SubType = s
+		pType.Depth = d
+	}
+}
+func (pType *TExprTypeInfo) SetSubType(s TToken) {
+	if pType != nil {
+		pType.SubType = s
+	}
+}
+
+type TTokenExpr struct {
+	Expression interface{}
+	Type       TExprTypeInfo
+	token      TToken
+}
+
+func (pExpr *TTokenExpr) ToString() string {
+	if (pExpr != nil) && (pExpr.Expression != nil) {
+		return string(pExpr.token)
+	}
+	return ""
+}
+func GetTokens(pExpr interface{}) []TToken {
+	if cast, ok := pExpr.(*TTokenExpr); ok {
+		return cast.GetTokens()
+	}
+	return nil
+}
+func (pExpr *TTokenExpr) GetTokens() []TToken {
+	ret := []TToken{}
+	if (pExpr != nil) && (pExpr.Expression != nil) {
+		ret = append(ret, pExpr.token)
+	}
+	return ret
+}
+func (pExpr *TTokenExpr) SetType(t TToken, d uint16) {
+	if (pExpr != nil) && (pExpr.Expression != nil) {
+		pExpr.Type.Set(t, "", d)
+	}
+}
+func (pExpr *TTokenExpr) SetSubType(s TToken) {
+	if (pExpr != nil) && (pExpr.Expression != nil) {
+		pExpr.Type.SetSubType(s)
+	}
+}
+
+type TChainedExpressions struct {
+	// chain-rule of any type (must use switch-type of 'pChain.Rule.(type)' to determine dynamically)
+	Expressions []interface{} // Expression are sequentially ordered chains (i.e. TEquate -> Cpu -> TLog ->  TVerdict)
+	Type        TExprTypeInfo
+	tokens      []TToken // Mainly for debug purpose, each line of rules in a TTable, it is array so it can be tokenized (i.e. differences between "This is a string" as single token versus 4 tokens)
+}
+
+func (pExpression *TChainedExpressions) GetNext() func() interface{} {
+	i := -1
+	if (pExpression != nil) && (pExpression.Expressions != nil) {
+		return func() interface{} {
+			i = i + 1
+			if len(pExpression.Expressions) > i {
+				return pExpression.Expressions[i]
+			}
+			i = -1
+			return nil
+		}
+	}
+	return nil
+}
+func (pExpression *TChainedExpressions) GetType() TExprTypeInfo {
+	if pExpression != nil {
+		return pExpression.Type
+	}
+	return TExprTypeInfo{}
+}
+func (pExpression *TChainedExpressions) SetType(t TToken, d uint16) {
+	if pExpression != nil {
+		pExpression.Type.Set(t, "", d)
+	}
+}
+func (pExpression *TChainedExpressions) SetSubType(s TToken) {
+	if pExpression != nil {
+		pExpression.Type.SetSubType(s)
+	}
+}
+func (pExpression *TChainedExpressions) GetTypeString() string {
+	return pExpression.GetType().ToString()
+}
+func (pExpression *TChainedExpressions) GetTokens() ([]TToken, error) {
+	if pExpression != nil {
+		return pExpression.tokens, nil
+	}
+	return []TToken{}, fmt.Errorf("Expression pointer must not be nil")
+}
+func (pExpression *TChainedExpressions) TokensToString() string {
+	tl, err := pExpression.GetTokens()
+	if err == nil {
+		return TokensToString(tl)
+	}
+	return ""
+}
+func (pExpression *TChainedExpressions) ToString() string {
+	return pExpression.TokensToString() // this is same as above
+}
+func (thisToken *TChainedExpressions) AppendToken(token TToken) {
+	thisToken.AppendTokens([]TToken{token})
+}
+func (thisToken *TChainedExpressions) AppendTokens(tokens []TToken) {
+	if (thisToken != nil) && (len(tokens) > 0) {
+		thisToken.tokens = append(thisToken.tokens, tokens...)
+
+		if CLogLevel >= CLogLevelDiagnostic {
+			caller := ""
+			// Caller(1) means the callee of this method (skip 1 stack)
+			if _, f, ln, ok := runtime.Caller(1); ok {
+				_, fn := filepath.Split(f)
+				caller = fmt.Sprintf("%s:%d", fn, ln)
+			}
+			log.Printf("\t\t>> %s: TChainedExpressions.Append(%v) -> %v", caller, tokens, thisToken.tokens)
+		}
+	}
+}
+func (pExpression *TChainedExpressions) Append(iface interface{}) error {
+	if (pExpression != nil) && (iface != nil) {
+		pExpression.Expressions = append(pExpression.Expressions, iface)
+		return nil
+	}
+	return fmt.Errorf("TChainedExpressions is nil")
+}
+func (pExpression *TChainedExpressions) GetExpressions() ([]interface{}, error) {
+	if pExpression != nil {
+		return pExpression.Expressions, nil
+	}
+	return nil, fmt.Errorf("Expression pointer must not be nil")
+}
+func (pExpression *TChainedExpressions) GetTypeInterface(i int) interface{} {
+	if (pExpression != nil) && (len(pExpression.Expressions) > i) {
+		return reflect.TypeOf(pExpression.Expressions[i])
+	}
+	return nil
+}
+func (pExpression *TChainedExpressions) ParseTailChains(rule *TTextStatement, iTokenIndex uint16) error {
+	tokens, _, _, vcError := rule.getNextToken(iTokenIndex, 1, true)
+	if vcError == nil {
+		done := false
+		for done == false {
+			// verdits usually goes last, so always check 'counter' token first
+			if rule.isCounterRule(iTokenIndex) {
+				pExpression.AppendToken(tokens[0])
+				if cntr, cntrErr := rule.parseCounter(iTokenIndex); cntrErr == nil {
+					pExpression.Append(cntr)
+					// skip forward to next token
+					tokens, iTokenIndex, rule, cntrErr = rule.getNextToken(iTokenIndex, 1, true)
+					if (cntrErr != nil) || (rule == nil) {
+						done = true
+						break
+					}
+				}
+			} else if rule.isVerdict(iTokenIndex) {
+				pExpression.AppendToken(tokens[0])
+				if vrdct, vErr := rule.parseVerdict(iTokenIndex); vErr == nil {
+					pExpression.Append(vrdct)
+					// skip forward to next token
+					tokens, iTokenIndex, rule, vErr = rule.getNextToken(iTokenIndex, 1, true)
+					if (vErr != nil) || (rule == nil) {
+						done = true
+						break
+					}
+				}
+			} else {
+				done = true
+				break
+			}
+		}
+	}
+	return vcError
 }
 
 // Statement is the action performed when the packet match the rule. It could be terminal and non-terminal.
@@ -241,46 +526,210 @@ type TRule struct {
 type TRuleType struct {
 	ChainType TChainType
 	Hook      THookName
-	Device    string
+	Device    TToken
 	Priority  Tpriority
-	Policy    TVerdict // type can have default policy
+	Policy    *TVerdict // type can have default policy
 
+	Type   TExprTypeInfo
 	Tokens []TToken
 }
-type TRulePayload struct {
-	Ether   TExpressionHeaderEther
-	Vlan    TExpressionHeaderVlan
-	Arp     TExpressionHeaderArp
-	Ip      TExpressionHeaderIpv4
-	Ip6     TExpressionHeaderIpv6
-	Tcp     TExpressionHeaderTcp
-	Udp     TExpressionHeaderUdp
-	UdpLite TExpressionHeaderUdpLite
-	Sctp    TExpressionHeaderSctp
-	Dccp    TExpressionHeaderDccp
-	Ah      TExpressionHeaderAH
-	Esp     TExpressionHeaderESP
-	IpComp  TExpressionHeaderIpcomp
-	Ip6Ext  TExpressionHeaderIpv6Ext
 
-	Icmp   TICMP
-	Icmpv6 TICMPv6
-	Dst    TMatchDST
-	Frag   TFrag
-	Hbh    THbh
-	Mh     TMH
-	Rt     TRouting
+func (pRule *TRuleType) ToString() string {
+	if pRule != nil {
+		return TokensToString(pRule.Tokens)
+	}
+	return ""
+}
+func (pRule *TRuleType) AppendTokens(tl []TToken) {
+	if (pRule != nil) && (len(tl) > 0) {
+		pRule.Tokens = append(pRule.Tokens, tl...)
+	}
+}
+
+type TRulePayload struct {
+	Expr TChainedExpressions
+	//Ether   *TExpressionHeaderEther
+	//Vlan    *TExpressionHeaderVlan
+	//Arp     *TExpressionHeaderArp
+	//Ip      *TExpressionHeaderIpv4
+	//Ip6     *TExpressionHeaderIpv6
+	//Tcp     *TExpressionHeaderTcp
+	//Udp     *TExpressionHeaderUdp
+	//UdpLite *TExpressionHeaderUdpLite
+	//Sctp    *TExpressionHeaderSctp
+	//Dccp    *TExpressionHeaderDccp
+	//Ah      *TExpressionHeaderAH
+	//Esp     *TExpressionHeaderESP
+	//IpComp  *TExpressionHeaderIpcomp
+	//Ip6Ext  *TExpressionHeaderIpv6Ext
+	//Icmp    *TICMP
+	//Icmpv6  *TICMPv6
+	//Dst     *TMatchDST
+	//Frag    *TFrag
+	//Hbh     *THbh
+	//Mh      *TMH
+	//Rt      *TRouting
+}
+
+func (payload *TRulePayload) HasExpression() bool {
+	if payload != nil {
+		return (payload.Expr.Expressions != nil) && (len(payload.Expr.Expressions) > 0)
+	}
+	return false
+	//if payload == nil {
+	//	return false
+	//}
+	//return (payload.Ether != nil || payload.Vlan != nil || payload.Arp != nil || payload.Ip != nil || payload.Ip6 != nil ||
+	//	payload.Tcp != nil || payload.Udp != nil || payload.UdpLite != nil || payload.Sctp != nil || payload.Dccp != nil ||
+	//	payload.Ah != nil || payload.Esp != nil || payload.IpComp != nil || payload.Ip6Ext != nil || payload.Icmp != nil ||
+	//	payload.Icmpv6 != nil || payload.Dst != nil || payload.Frag != nil || payload.Hbh != nil || payload.Mh != nil || payload.Rt != nil)
+}
+func (payload *TRulePayload) GetTokens() []TToken {
+	var ret []TToken
+	if payload == nil {
+		return ret
+	}
+	if payload.HasExpression() {
+		for _, p := range payload.Expr.Expressions {
+			switch t := p.(type) {
+			case *TExpressionHeaderEther:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderVlan:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderArp:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderIpv4:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderIpv6:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderTcp:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderUdp:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderUdpLite:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderSctp:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderDccp:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderAH:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderESP:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderIpcomp:
+				ret = append(ret, t.GetTokens()...)
+			case *TExpressionHeaderIpv6Ext:
+				ret = append(ret, t.GetTokens()...)
+			case *TICMP:
+				ret = append(ret, t.GetTokens()...)
+			case *TICMPv6:
+				ret = append(ret, t.GetTokens()...)
+			case *TMatchDST:
+				ret = append(ret, t.GetTokens()...)
+			case *TFrag:
+				ret = append(ret, t.GetTokens()...)
+			case *THbh:
+				ret = append(ret, t.GetTokens()...)
+			case *TMH:
+				ret = append(ret, t.GetTokens()...)
+			case *TRouting:
+				ret = append(ret, t.GetTokens()...)
+			default:
+				switch tE := p.(type) {
+				case TStatementVerdict:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementLog:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementCounter:
+					ret = append(ret, GetTokens(tE)...)
+				case TEquate:
+					ret = append(ret, GetTokens(tE)...)
+				default:
+					caller := ""
+					// Caller(1) means the callee of this method (skip 1 stack)
+					if _, f, ln, ok := runtime.Caller(1); ok {
+						_, fn := filepath.Split(f)
+						caller = fmt.Sprintf("%s:%d", fn, ln)
+					}
+					log.Panicf("%s: Unhandled type '%T' encountered (contents: '%+v')", caller, tE, tE)
+				}
+			}
+		}
+	}
+	return ret
 }
 
 type TRuleStatement struct {
-	Verdict TStatementVerdict
-	Log     TStatementLog
-	Reject  TStatementReject
-	Counter TStatementCounter
-	Meta    TExpressionMeta
-	Limit   TStatementLimit
-	Nat     TStatementNat
-	Queue   TStatementQueue
+	Expr TChainedExpressions
+	//Verdict *TStatementVerdict
+	//Log     *TStatementLog
+	//Reject  *TStatementReject
+	//Counter *TStatementCounter
+	//Meta    *TExpressionMeta
+	//Limit   *TStatementLimit
+	//Nat     *TStatementNat
+	//Queue   *TStatementQueue
+}
+
+func (expr *TRuleStatement) HasExpression() bool {
+	if expr != nil {
+		return (expr.Expr.Expressions != nil) && (len(expr.Expr.Expressions) > 0)
+	}
+	return false
+	//if expr == nil {
+	//	return false
+	//}
+	//return (expr.Verdict != nil || expr.Log != nil || expr.Reject != nil ||
+	//	expr.Counter != nil || expr.Meta != nil || expr.Limit != nil ||
+	//	expr.Nat != nil || expr.Queue != nil)
+}
+func (expr *TRuleStatement) GetTokens() []TToken {
+	var ret []TToken
+	if expr == nil {
+		return ret
+	}
+	if expr.HasExpression() {
+		for _, e := range expr.Expr.Expressions {
+			switch t := e.(type) {
+			case *TStatementVerdict:
+				ret = append(ret, expr.GetTokens()...)
+			case *TStatementLog:
+				ret = append(ret, expr.GetTokens()...)
+			case *TStatementReject:
+				ret = append(ret, expr.GetTokens()...)
+			case *TStatementCounter:
+				ret = append(ret, expr.GetTokens()...)
+			case *TExpressionMeta:
+				ret = append(ret, expr.GetTokens()...)
+			case *TStatementLimit:
+				ret = append(ret, expr.GetTokens()...)
+			case *TStatementNat:
+				ret = append(ret, expr.GetTokens()...)
+			case *TStatementQueue:
+				ret = append(ret, expr.GetTokens()...)
+			default:
+				switch tE := e.(type) {
+				case TStatementVerdict:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementLog:
+					ret = append(ret, GetTokens(tE)...)
+				case TStatementCounter:
+					ret = append(ret, GetTokens(tE)...)
+				case TEquate:
+					ret = append(ret, GetTokens(tE)...)
+				default:
+					caller := ""
+					// Caller(1) means the callee of this method (skip 1 stack)
+					if _, f, ln, ok := runtime.Caller(1); ok {
+						_, fn := filepath.Split(f)
+						caller = fmt.Sprintf("%s:%d", fn, ln)
+					}
+					log.Panicf("%s: Unhandled type '%T' encountered (contents: '%+v')", caller, tE, tE)
+				}
+			}
+		}
+	}
+	return ret
 }
 
 // The link layer address type is used for link layer addresses. Link layer addresses are specified as a variable amount of groups of two hexadecimal digits separated using colons (:).
@@ -316,8 +765,8 @@ const (
 )
 
 // Shared types amongst other expression/statements
-type Tnfproto string
-type Tprotocol string
+type Tnfproto TToken
+type Tprotocol TToken
 type Tpacketmark struct { // used only by 'meta mark' and 'ct mark'
 	// i.e. 'and 0x03 == 0x01', 'set 0xfffe xor 0x16', 'and 0x03 != 0x01', 'set 0xffffffe0 or 0x16'
 	// Eg1:
@@ -339,53 +788,53 @@ type TMinMax16 [2]int16
 type TMinMaxU8 [2]uint8
 type TMinMax8 [2]int8
 type TIntOrAlias struct {
-	Num   int
-	Alias TToken
-	Range TMinMax
+	Num   *int
+	Alias *TToken
+	Range *TMinMax
 }
 type TUInt32OrAlias struct {
-	Num   uint32
-	Alias TToken
-	Range TMinMaxU32
+	Num   *uint32
+	Alias *TToken
+	Range *TMinMaxU32
 }
 type TInt8OrAlias struct {
-	Num   int8
-	Alias TToken
-	Range TMinMax8
+	Num   *int8
+	Alias *TToken
+	Range *TMinMax8
 }
 type TUInt8OrAlias struct {
-	Num   uint8
-	Alias TToken
-	Range TMinMaxU8
+	Num   *uint8
+	Alias *TToken
+	Range *TMinMaxU8
 }
 type TInt16OrAlias struct {
-	Num   int16
-	Alias TToken
-	Range TMinMax16
+	Num   *int16
+	Alias *TToken
+	Range *TMinMax16
 }
 type TUInt16OrAlias struct {
-	Num   uint16
-	Alias TToken
-	Range TMinMaxU16
+	Num   *uint16
+	Alias *TToken
+	Range *TMinMaxU16
 }
 
-type TVerdict string
+type TVerdict TTokenExpr
 type TPort uint32
 
 // inet_service
 type Tinetservice struct {
-	Port        [2]TPort  // i.e. '22' or '8000-8001', for lists like '{22, 80, 443, 8000-8001}', do []Tinetservice
-	ServicePort [2]TToken // i.e. 'ssh' or 'ssh-telnet', for lists like '{ssh, http, https, 8000-8001}', do array
+	Port        *[2]TPort  // i.e. '22' or '8000-8001', for lists like '{22, 80, 443, 8000-8001}', do []Tinetservice
+	ServicePort *[2]TToken // i.e. 'ssh' or 'ssh-telnet', for lists like '{ssh, http, https, 8000-8001}', do array
 }
 type Tinetproto struct { // inet_proto
-	Range TMinMaxU32 // can be either single number (i.e. {22, -1}) or ranged paired (i.e. {1024-2048})
-	Alias TToken     // in some cases it can be a list (i.e. {esp, udp, ah, comp}) - for lists of alias, make sure do to do []Tinetproto
+	Range *TMinMaxU32 // can be either single number (i.e. {22, -1}) or ranged paired (i.e. {1024-2048})
+	Alias *TToken     // in some cases it can be a list (i.e. {esp, udp, ah, comp}) - for lists of alias, make sure do to do []Tinetproto
 }
 
 // vmap: i.e. 'tcp dport vmap { 22 : accept, 23 : drop }'
 type TVMap struct {
-	Port        TPort
-	ServicePort TToken
+	Port        *TPort
+	ServicePort *TToken
 	Verdict     TVerdict
 }
 
@@ -393,15 +842,15 @@ type TVMap struct {
 // i.e. id=bin, root, daemon
 // it can also be range based (i.e. '2000-2005')
 type TID struct {
-	IDByName []TToken // can be CSV (i.e. {bin, root, daemon}
-	ID       [2]int   // range based, but if just single, it is {n, -1} - ID=0 is root, -1 indicates unset
+	IDByName *[]TToken // can be CSV (i.e. {bin, root, daemon}
+	ID       *[2]int   // range based, but if just single, it is {n, -1} - ID=0 is root, -1 indicates unset
 }
 
 // Nftables is just a container map of tables where the KEY is a unique
 // dotted namespace (family.tableName) for quicker lookup
 type TUniqueTableName string // dotted table name such as "ip.filter", "ip6.nat" so that if there are "ip6" and "ip" family to table "filter", we can distinguish it
 type Nftables struct {
-	Tables map[TUniqueTableName]TTable // key: table name (i.e. "ip.filter", "ip6.filter")
+	Tables map[TUniqueTableName]*TTable // key: table name (i.e. "ip.filter", "ip6.filter")
 	//sync.RWMutex	// see https://blog.golang.org/go-maps-in-action in terms of concurrency issue with maps
 }
 
