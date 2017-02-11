@@ -233,7 +233,7 @@ type TExpressionMeta struct {
 }
 
 // meta statements seems to be allowed without the 'meta' keyword
-func isMetaRule(rule *TTextStatement, iTokenIndexRO uint16) bool {
+func (rule *TTextStatement) isMetaRule(iTokenIndexRO uint16) bool {
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
 		log.Panicf("Unable to find next token - %+v", rule)
@@ -275,7 +275,7 @@ func IsMetaRule(token TToken) bool {
 	return false
 }
 
-func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, error) {
+func (rule *TTextStatement) parseMeta(tokenIndexRO uint16) (TExpressionMeta, error) {
 	caller := ""
 	// Caller(1) means the callee of this method (skip 1 stack)
 	if _, f, ln, ok := runtime.Caller(1); ok {
@@ -284,7 +284,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 	}
 
 	var retExpr TExpressionMeta
-	if isMetaRule(rule, tokenIndexRO) == false {
+	if rule.isMetaRule(tokenIndexRO) == false {
 		log.Panicf("%s: Statement '%+v' is not a match 'meta' based rule!", caller, rule)
 	}
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(tokenIndexRO, 1, true)
@@ -853,7 +853,7 @@ func parseMeta(rule *TTextStatement, tokenIndexRO uint16) (TExpressionMeta, erro
 		if tokens, _, _, nextErr = currentRule.getNextToken(iTokenIndex, 1, true); nextErr == nil {
 			if IsVerdict(tokens[0]) {
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex)
+				retExpr.Verdict, err = currentRule.parseVerdict(iTokenIndex)
 				if tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true); err != nil {
 					err = nil // we're done
 				}

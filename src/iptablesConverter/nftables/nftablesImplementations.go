@@ -974,7 +974,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 
 	switch token {
 	case CTokenType:
-		ret, err := parseChainType(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parseChainType(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -988,7 +988,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 	case CTokenChainPriority:
 		log.Panicf("Token '%s' encountered without keyword 'type' (in %+v)", tokens, currentRule)
 	case CTokenChainPolicy:
-		p, err := parseDefaultPolicy(currentRule, iTokenIndexRO)
+		p, err := currentRule.parseDefaultPolicy(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -996,7 +996,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 		newTail.Rule.Policy = p
 
 	case CTokenMatchIP:
-		ret, err := parsePayloadIp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadIp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1006,7 +1006,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchIP6:
-		ret, err := parsePayloadIp6(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadIp6(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1016,7 +1016,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchTCP:
-		ret, err := parsePayloadTcp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadTcp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1026,7 +1026,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchUDP:
-		ret, err := parsePayloadUdp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadUdp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1036,7 +1036,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchUDPLite:
-		ret, err := parsePayloadUdpLite(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadUdpLite(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1046,7 +1046,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchSCTP:
-		ret, err := parsePayloadSctp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadSctp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1056,7 +1056,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchDCCP:
-		ret, err := parsePayloadDccp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadDccp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1066,7 +1066,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchAH:
-		ret, err := parsePayloadAh(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadAh(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1076,7 +1076,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchESP:
-		ret, err := parsePayloadEsp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadEsp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1086,7 +1086,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchComp:
-		ret, err := parsePayloadIpComp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadIpComp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1096,7 +1096,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchICMP:
-		ret, err := parsePayloadIcmp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadIcmp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1106,7 +1106,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchICMPv6:
-		ret, err := parsePayloadIcmpv6(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadIcmpv6(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1116,7 +1116,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchEther:
-		ret, err := parsePayloadEther(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadEther(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1126,7 +1126,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchDST:
-		ret, err := parsePayloadDst(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadDst(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1136,7 +1136,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchFrag:
-		ret, err := parsePayloadFrag(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadFrag(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1146,7 +1146,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchHBH:
-		ret, err := parsePayloadHbh(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadHbh(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1156,7 +1156,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchMH:
-		ret, err := parsePayloadMh(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadMh(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1166,7 +1166,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchRT:
-		ret, err := parsePayloadRt(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadRt(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1176,7 +1176,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchVLAN:
-		ret, err := parsePayloadVlan(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadVlan(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1186,7 +1186,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchARP:
-		ret, err := parsePayloadArp(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parsePayloadArp(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1196,7 +1196,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchCT:
-		ret, err := parseConnTrack(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parseConnTrack(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1206,7 +1206,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 			}
 		}
 	case CTokenMatchMeta:
-		ret, err := parseMeta(currentRule, iTokenIndexRO)
+		ret, err := currentRule.parseMeta(iTokenIndexRO)
 		if err != nil {
 			log.Panic(err)
 		} else {
@@ -1218,9 +1218,9 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 	default:
 		{
 			// first, check if it is of 'meta' tokens, which can be without it (i.e. 'iif lo accept')
-			if isMetaRule(currentRule, iTokenIndexRO) {
+			if currentRule.isMetaRule(iTokenIndexRO) {
 				// parse for meta
-				ret, err := parseMeta(currentRule, iTokenIndexRO)
+				ret, err := currentRule.parseMeta(iTokenIndexRO)
 				if err != nil {
 					log.Panic(err)
 				} else {
@@ -1229,9 +1229,9 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 						log.Printf("\t\t\t\t* Parsed -> %s", tokensToString(ret.Tokens))
 					}
 				}
-			} else if isCounterRule(currentRule, iTokenIndexRO) {
+			} else if currentRule.isCounterRule(iTokenIndexRO) {
 				// parse for counter
-				ret, err := parseCounter(currentRule, iTokenIndexRO)
+				ret, err := currentRule.parseCounter(iTokenIndexRO)
 				if err != nil {
 					log.Panic(err)
 				} else {
@@ -1254,7 +1254,7 @@ func (thisPChainHead *TChain) ParseChainRule(ruleRO *TTextStatement, iTokenIndex
 }
 
 // type <type> hook <hook> [device <device>] priority <priority> \; [policy <policy> \;]
-func parseChainType(rule *TTextStatement, iTokenIndexRO uint16) (TRuleType, error) {
+func (rule *TTextStatement) parseChainType(iTokenIndexRO uint16) (TRuleType, error) {
 	var retExpr TRuleType
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
@@ -1317,7 +1317,7 @@ func parseChainType(rule *TTextStatement, iTokenIndexRO uint16) (TRuleType, erro
 
 		case CTokenChainPolicy:
 			retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-			p, err := parseDefaultPolicy(currentRule, iTokenIndex) // inc iTokenIndex here so getNextToken() below can test or do we assume policy is as-is?
+			p, err := currentRule.parseDefaultPolicy(iTokenIndex) // inc iTokenIndex here so getNextToken() below can test or do we assume policy is as-is?
 			if err != nil {
 				log.Panicf("Unable to find next token - %+v", rule)
 			}

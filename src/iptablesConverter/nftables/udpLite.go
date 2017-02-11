@@ -44,7 +44,7 @@ type TExpressionHeaderUdpLite struct {
 	Tokens  []TToken
 }
 
-func parsePayloadUdpLite(rule *TTextStatement, iTokenIndexRO uint16) (TExpressionHeaderUdpLite, error) {
+func (rule *TTextStatement) parsePayloadUdpLite(iTokenIndexRO uint16) (TExpressionHeaderUdpLite, error) {
 	var retExpr TExpressionHeaderUdpLite
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
@@ -73,14 +73,14 @@ func parsePayloadUdpLite(rule *TTextStatement, iTokenIndexRO uint16) (TExpressio
 		iLastIndex := iTokenIndex
 		for done == false {
 			// verdits usually goes last, so always check 'counter' token first
-			if isCounterRule(currentRule, iTokenIndex) {
+			if currentRule.isCounterRule(iTokenIndex) {
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				retExpr.Counter, err = parseCounter(currentRule, iTokenIndex)
+				retExpr.Counter, err = currentRule.parseCounter(iTokenIndex)
 				iTokenIndex = iLastIndex
 				currentRule = lastRule
-			} else if isVerdict(currentRule, iTokenIndex) {
+			} else if currentRule.isVerdict(iTokenIndex) {
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex)
+				retExpr.Verdict, err = currentRule.parseVerdict(iTokenIndex)
 				iTokenIndex = iLastIndex
 				currentRule = lastRule
 			} else {

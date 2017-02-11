@@ -78,7 +78,7 @@ type TICMPv6 struct {
 	Tokens   []TToken
 }
 
-func parsePayloadIcmpv6(rule *TTextStatement, iTokenIndexRO uint16) (TICMPv6, error) {
+func (rule *TTextStatement) parsePayloadIcmpv6(iTokenIndexRO uint16) (TICMPv6, error) {
 	var retExpr TICMPv6
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
@@ -184,9 +184,9 @@ func parsePayloadIcmpv6(rule *TTextStatement, iTokenIndexRO uint16) (TICMPv6, er
 		done := false
 		for done == false {
 			// verdits usually goes last, so always check 'counter' token first
-			if isCounterRule(currentRule, iTokenIndex) {
+			if currentRule.isCounterRule(iTokenIndex) {
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Counter, err = parseCounter(currentRule, iTokenIndex); err == nil {
+				if retExpr.Counter, err = currentRule.parseCounter(iTokenIndex); err == nil {
 					// skip forward to next token
 					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {
@@ -195,9 +195,9 @@ func parsePayloadIcmpv6(rule *TTextStatement, iTokenIndexRO uint16) (TICMPv6, er
 						break
 					}
 				}
-			} else if isVerdict(currentRule, iTokenIndex) {
+			} else if currentRule.isVerdict(iTokenIndex) {
 				retExpr.Tokens = append(retExpr.Tokens, tokens[0])
-				if retExpr.Verdict, err = parseVerdict(currentRule, iTokenIndex); err == nil {
+				if retExpr.Verdict, err = currentRule.parseVerdict(iTokenIndex); err == nil {
 					// skip forward to next token
 					tokens, iTokenIndex, currentRule, err = currentRule.getNextToken(iTokenIndex, 1, true)
 					if (err != nil) || (currentRule == nil) {

@@ -70,7 +70,7 @@ func IsVerdict(t TToken) bool {
 	}
 	return false
 }
-func isVerdict(rule *TTextStatement, iTokenIndexRO uint16) bool {
+func (rule *TTextStatement) isVerdict(iTokenIndexRO uint16) bool {
 	caller := ""
 	// Caller(1) means the callee of this method (skip 1 stack)
 	if _, f, ln, ok := runtime.Caller(1); ok {
@@ -88,7 +88,7 @@ func isVerdict(rule *TTextStatement, iTokenIndexRO uint16) bool {
 }
 
 // parse for default policy (verdicts for the entire chain)
-func parseDefaultPolicy(rule *TTextStatement, iTokenIndexRO uint16) (TVerdict, error) {
+func (rule *TTextStatement) parseDefaultPolicy(iTokenIndexRO uint16) (TVerdict, error) {
 	var retExpr TVerdict
 	if len(rule.Tokens) < 2 {
 		log.Panicf("Expected at least 2 tokens for 'policy' (in %+v)", rule)
@@ -116,7 +116,7 @@ func parseDefaultPolicy(rule *TTextStatement, iTokenIndexRO uint16) (TVerdict, e
 }
 
 // Calling methods should make sure to first call IsVerdict() so that they won't get a panic
-func parseVerdict(rule *TTextStatement, iTokenIndexRO uint16) (TStatementVerdict, error) {
+func (rule *TTextStatement) parseVerdict(iTokenIndexRO uint16) (TStatementVerdict, error) {
 	caller := ""
 	// Caller(1) means the callee of this method (skip 1 stack)
 	if _, f, ln, ok := runtime.Caller(1); ok {

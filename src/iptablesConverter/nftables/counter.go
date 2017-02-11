@@ -55,7 +55,7 @@ func IsCounterRule(token TToken) bool {
 	}
 	return false
 }
-func isCounterRule(rule *TTextStatement, iTokenIndexRO uint16) bool {
+func (rule *TTextStatement) isCounterRule(iTokenIndexRO uint16) bool {
 	caller := ""
 	// Caller(1) means the callee of this method (skip 1 stack)
 	if _, f, ln, ok := runtime.Caller(1); ok {
@@ -73,7 +73,7 @@ func isCounterRule(rule *TTextStatement, iTokenIndexRO uint16) bool {
 	return IsCounterRule(tokens[0])
 }
 
-func parseCounter(rule *TTextStatement, iTokenIndexRO uint16) (TStatementCounter, error) {
+func (rule *TTextStatement) parseCounter(iTokenIndexRO uint16) (TStatementCounter, error) {
 	var retExpr TStatementCounter
 	tokens, iTokenIndex, currentRule, err := rule.getNextToken(iTokenIndexRO, 1, true)
 	if err != nil {
