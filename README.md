@@ -1,3 +1,7 @@
+# NOTICE
+This project has been abandoned now that iptables-nft is reliable, it is ONLY HERE for my purpose of preserving my past work on golang...
+
+
 # Introductions
 This project is *not* to emulate and/or substitute for [iptables-translate](https://wiki.nftables.org/wiki-nftables/index.php/Moving_from_iptables_to_nftables).
 It originally started as a desire to self-teach golang, and I have been in a need to upgrade several of
